@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
+import com.hmdp.limiter.annotation.RateLimiter;
 import com.hmdp.service.IShopService;
 import com.hmdp.utils.SystemConstants;
 import org.springframework.web.bind.annotation.*;
@@ -60,18 +61,27 @@ public class ShopController {
     }
 
     /**
+     * 【滑动窗口限流】-4
      * 根据商铺类型分页查询商铺信息
+     * 举例测试滑动窗口限流，这里设置的参数的意思是 在window=5秒窗口时间内，限制访问次数是limit=5次，若5秒内超过5次则会限流(即限制访问)
+     * 测试：  http://localhost:8081/shop/of/type?typeId=1
      * @param typeId 商铺类型
      * @param current 页码
      * @return 商铺列表
      */
+    @RateLimiter(
+            key = "coupon:seckill:",
+            window = 5,
+            limit = 5,
+            message = "查询次数过多，请稍后再试",
+            type = RateLimiter.LimitType.METHOD
+    )
     @GetMapping("/of/type")
     public Result queryShopByType(
             @RequestParam("typeId") Integer typeId,
             @RequestParam(value = "current", defaultValue = "1") Integer current,
             @RequestParam(value = "x", required = false) Double x,
-            @RequestParam(value = "y", required = false) Double y
-    ) {
+            @RequestParam(value = "y", required = false) Double y) {
        return shopService.queryShopByType(typeId, current, x, y);
     }
 
