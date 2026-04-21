@@ -1,0 +1,39 @@
+---
+description: "开发指南 - 环境搭建、启动命令、配置说明；当需要设置开发环境时使用"
+alwaysApply: false
+---
+<!-- AI生成，可根据团队规范更新 -->
+# 开发指南
+## 环境准备
+| 工具 | 版本 |
+| --- | --- |
+| JDK | 1.8 |
+| Maven | <!-- TODO --> |
+| MySQL | 5.7+（依据驱动 5.1.47 推断） |
+| Redis | 6.x（需支持 Stream + Lua） |
+## 常用命令
+| 操作 | 命令 |
+| --- | --- |
+| 安装依赖 | `mvn clean compile` |
+| 本地启动 | `mvn spring-boot:run` |
+| 构建打包 | `mvn clean package -DskipTests` |
+| 运行测试 | `mvn test` |
+| 代码检查 | `mvn -q test` |
+## 配置文件清单
+| 文件 | 作用 |
+| --- | --- |
+| `src/main/resources/application.yaml` | Spring Boot 端口、MySQL、Redis、日志与缓存配置 |
+| `src/main/resources/seckill.lua` | 秒杀资格校验/下单前置 Lua 脚本 |
+| `src/main/resources/unlock.lua` | Redis 分布式锁释放脚本 |
+| `src/main/resources/db/hmdp.sql` | 本地数据库初始化脚本 |
+## 调试与验证
+```mermaid
+flowchart LR
+ Start[启动应用 8081] --> Check1[访问公开接口 /shop/**]
+ Check1 --> Check2[调用 /voucher-order/seckill/{id}]
+ Check2 --> Redis[检查 Redis key/stream]
+ Redis --> DB[检查 voucher_order 与库存变更]
+```
+- 健康检查：启动后观察控制台是否打印 Spring Boot 启动完成日志。
+- 本地访问入口：`http://localhost:8081`。
+- 日志级别：`application.yaml` 已将 `com.hmdp` 设为 `debug`，便于排查调用链。

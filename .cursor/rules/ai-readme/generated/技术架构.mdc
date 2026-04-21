@@ -1,0 +1,37 @@
+---
+description: "技术架构 - 分层架构和技术栈清单；当需要了解技术选型时使用"
+alwaysApply: false
+---
+<!-- AI生成，可根据团队规范更新 -->
+# 技术架构
+## 架构总览
+```mermaid
+flowchart TD
+ Client[HTTP Client] --> C[Controller 层]
+ C --> S[Service 层]
+ S --> M[Mapper 层]
+ M --> DB[(MySQL)]
+ S --> R[(Redis)]
+ S --> Lua[Lua 脚本]
+ S --> Lock[Redisson 分布式锁]
+```
+## 分层说明
+| 分层 | 职责 | 主要类/文件 |
+| --- | --- | --- |
+| 启动层 | 启动 Spring Boot、扫描 Mapper | `HmDianPingApplication.java` |
+| 接口层 | 暴露 REST API、返回统一 `Result` | `VoucherOrderController.java`、`UserController.java` |
+| 业务层 | 秒杀、店铺、博客等业务逻辑 | `VoucherOrderServiceImpl.java`、`ShopServiceImpl.java` |
+| 数据层 | CRUD 与条件查询 | `*Mapper.java`、`resources/mapper/*.xml` |
+| 基础设施层 | 拦截器、缓存、ID 生成、锁 | `MvcConfig.java`、`CacheClient.java`、`RedisIdWorker.java` |
+## 技术栈
+| 类目 | 技术 | 版本 | 用途 |
+| --- | --- | --- | --- |
+| 语言/运行时 | Java | 1.8 | 业务开发运行时 |
+| 主框架 | Spring Boot | 2.3.12.RELEASE | Web + IOC + 配置 |
+| ORM/持久层 | MyBatis-Plus | 3.4.3 | 数据访问与实体映射 |
+| 缓存/消息 | Spring Data Redis + Lettuce | 2.6.2 / 6.1.6.RELEASE | 缓存、Stream、Lua |
+| 分布式锁 | Redisson | 3.13.6 | 并发控制 |
+| 数据库 | MySQL Connector/J | 5.1.47 | MySQL 访问 |
+| 工具库 | Hutool | 5.7.17 | 工具方法与 Bean 处理 |
+| 测试框架 | Spring Boot Starter Test | 随 Spring Boot | 单元/集成测试 |
+| 构建工具 | Maven | <!-- TODO --> | 依赖管理与打包 |

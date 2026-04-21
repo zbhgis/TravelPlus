@@ -1,0 +1,58 @@
+---
+description: "核心流程 - 主要业务调用链；当需要理解系统运作时使用"
+alwaysApply: false
+---
+<!-- AI生成，可根据团队规范更新 -->
+# 核心流程
+> 提示：以下流程由 AI 从代码推断而来，**请用户确认 P0/P1 是否就是团队认知中的核心**。
+## 流程清单
+| 优先级 | 流程名 | 入口 | 备注 |
+| --- | --- | --- | --- |
+| P0 | 优惠券秒杀下单 | `POST /voucher-order/seckill/{id}` | Redis Lua 预检 + Stream 异步落库 |
+| P1 | 手机验证码登录 | `POST /user/login` | 校验验证码后生成 token 并写入 Redis |
+## 流程 1：优惠券秒杀下单
+```mermaid
+sequenceDiagram
+ participant Client
+ participant Controller as VoucherOrderController
+ participant Service as VoucherOrderServiceImpl
+ participant Redis as Redis(Lua/Stream)
+ participant Worker as VoucherOrderHandler
+ participant DB as MySQL
+ Client->>Controller: POST /voucher-order/seckill/{id}
+ Controller->>Service: seckillVoucher(voucherId)
+ Service->>Redis: EVAL seckill.lua(voucherId,userId,orderId)
+ Redis-->>Service: 0/1/2
+ Service-->>Client: 返回订单id或失败
+ Redis->>Worker: Stream 消息 stream.orders
+ Worker->>DB: 扣库存 + 保存 voucher_order
+```
+### 调用链
+1. `controller/VoucherOrderController.seckillVoucher`
+2. `service/impl/VoucherOrderServiceImpl.seckillVoucher`
+3. `resources/seckill.lua`
+4. `service/impl/VoucherOrderServiceImpl.VoucherOrderHandler.run`
+5. `service/impl/VoucherOrderServiceImpl.createVoucherOrder`
+### 关键分支
+- Lua 返回 `1`：库存不足，直接失败。
+- Lua 返回 `2`：重复下单，直接失败。
+- 消费 Stream 异常时读取 pending-list 重试处理。
+## 流程 2：手机验证码登录
+```mermaid
+flowchart LR
+ A[UserController.login] --> B[UserServiceImpl.login]
+ B --> C[Redis读取验证码]
+ C --> D{校验通过?}
+ D -- 否 --> E[返回验证码错误]
+ D -- 是 --> F[查询/创建用户]
+ F --> G[生成token并写入Redis Hash]
+ G --> H[返回token]
+```
+### 调用链
+1. `controller/UserController.login`
+2. `service/impl/UserServiceImpl.login`
+3. `service/impl/UserServiceImpl.createUserWithPhone`（用户不存在时）
+### 关键分支
+- 手机号格式非法直接返回失败。
+- 验证码为空或不一致返回失败。
+- 用户不存在时自动注册后再登录。
