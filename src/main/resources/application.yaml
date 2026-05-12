@@ -33,12 +33,12 @@ spring:
               packages: '*'
 
 mybatis-plus:
-  type-aliases-package: com.hmdp.entity # 别名扫描包
+  type-aliases-package: com.travelplus.entity # 别名扫描包
 
 
 logging:
   level:
-    com.hmdp: debug
+    com.travelplus: debug
   pattern:
     dateformat: mm:ss.SSS
 

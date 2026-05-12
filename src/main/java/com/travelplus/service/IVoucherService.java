@@ -1,0 +1,20 @@
+package com.travelplus.service;
+
+import com.travelplus.dto.Result;
+import com.travelplus.entity.Voucher;
+import com.baomidou.mybatisplus.spring.service.IService;
+
+/**
+ * <p>
+ *  服务类
+ * </p>
+ *
+ * @author 虎哥
+ * @since 2021-12-22
+ */
+public interface IVoucherService extends IService<Voucher> {
+
+    Result queryVoucherOfShop(Long shopId);
+
+    void addSeckillVoucher(Voucher voucher);
+}
