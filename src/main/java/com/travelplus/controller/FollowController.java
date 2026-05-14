@@ -12,7 +12,7 @@ import jakarta.annotation.Resource;
  * 前端控制器
  * </p>
  *
- * @author 虎哥
+ * @author TravelPlus
  */
 @RestController
 @RequestMapping("/follow")

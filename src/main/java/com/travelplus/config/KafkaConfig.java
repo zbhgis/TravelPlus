@@ -40,7 +40,7 @@ public class KafkaConfig {
     private Long maxAttempts;
 
     /*@Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> seckillVoucherOrderKafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, Object> seckillTicketOrderKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         // 设置消费异常处理策略
         factory.setCommonErrorHandler(errorHandler());

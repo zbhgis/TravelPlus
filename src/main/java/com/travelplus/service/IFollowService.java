@@ -9,7 +9,7 @@ import com.baomidou.mybatisplus.spring.service.IService;
  *  服务类
  * </p>
  *
- * @author 虎哥
+ * @author TravelPlus
  * @since 2021-12-22
  */
 public interface IFollowService extends IService<Follow> {

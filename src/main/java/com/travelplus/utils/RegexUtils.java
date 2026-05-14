@@ -3,7 +3,7 @@ package com.travelplus.utils;
 import cn.hutool.core.util.StrUtil;
 
 /**
- * @author 虎哥
+ * @author TravelPlus
  */
 public class RegexUtils {
     /**

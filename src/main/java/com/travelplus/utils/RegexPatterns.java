@@ -1,7 +1,7 @@
 package com.travelplus.utils;
 
 /**
- * @author 虎哥
+ * @author TravelPlus
  */
 public abstract class RegexPatterns {
     /**
