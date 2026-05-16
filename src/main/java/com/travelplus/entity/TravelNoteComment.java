@@ -20,7 +20,7 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("tb_note_comments")
+@TableName("tb_travel_note_comment")
 public class TravelNoteComment implements Serializable {
 
     private static final long serialVersionUID = 1L;
