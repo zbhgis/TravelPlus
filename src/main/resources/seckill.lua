@@ -1,6 +1,6 @@
 -- 1.参数列表
--- 1.1.优惠券id
-local voucherId = ARGV[1]
+-- 1.1.门票id
+local ticketId = ARGV[1]
 -- 1.2.用户id
 local userId = ARGV[2]
 -- 1.3.订单id
@@ -8,9 +8,9 @@ local orderId = ARGV[3]
 
 -- 2.数据key
 -- 2.1.库存key
-local stockKey = 'seckill:stock:' .. voucherId
+local stockKey = 'seckill:stock:' .. ticketId
 -- 2.2.订单key
-local orderKey = 'seckill:order:' .. voucherId
+local orderKey = 'seckill:order:' .. ticketId
 
 -- 3.脚本业务
 -- 3.1.判断库存是否充足 get stockKey
@@ -28,5 +28,5 @@ redis.call('incrby', stockKey, -1)
 -- 3.5.下单（保存用户）sadd orderKey userId
 redis.call('sadd', orderKey, userId)
 -- 3.6.发送消息到队列中， XADD stream.orders * k1 v1 k2 v2 ...
--- redis.call('xadd', 'stream.orders', '*', 'userId', userId, 'voucherId', voucherId, 'id', orderId)
+-- redis.call('xadd', 'stream.orders', '*', 'userId', userId, 'ticketId', ticketId, 'id', orderId)
 return 0

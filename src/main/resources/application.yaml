@@ -2,10 +2,10 @@ server:
   port: 8081
 spring:
   application:
-    name: hmdp
+    name: travelplus
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3307/hmdp?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://127.0.0.1:3307/travelplus?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
     username: root
     password: 123456
   data:
@@ -42,10 +42,10 @@ logging:
   pattern:
     dateformat: mm:ss.SSS
 
-# 【秒杀优惠券信息多级缓存改造】本地缓存的配置项(刷新时间、过期时间)、Redis缓存的过期时间
-hmdp:
+# 【秒杀门票信息多级缓存改造】本地缓存的配置项(刷新时间、过期时间)、Redis缓存的过期时间
+travelplus:
   cache:
-    voucher-list:
+    ticket-list:
       mode: mysql
       refresh-after-write: 5s
       expire-after-write: 10m
