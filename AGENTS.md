@@ -1,17 +1,22 @@
 # AGENTS.md
 ## 项目概述
-`hm-dianping` 是一个本地生活服务后端示例，核心能力覆盖用户登录、店铺检索、博客互动与优惠券秒杀下单。
+`TravelPlus` 是一个旅游服务平台后端示例，核心能力覆盖用户登录、景点检索、游记互动与门票秒杀下单。
 ## 开发命令
 - 安装依赖：`mvn clean compile`
 - 本地启动：`mvn spring-boot:run`
 - 构建打包：`mvn clean package -DskipTests`
 - 运行测试：`mvn test`
+## 运行环境
+- JDK 24 + Maven 3.9.x + Spring Boot 3.5.9
+- MySQL 8.0（Docker 容器 travelplus-mysql，端口 3307，root/123456，库名 travelplus）
+- Redis（端口 6379，无密码）
+- Kafka（Docker 容器 travelplus-kafka，端口 9092，秒杀链路生产端使用）
 ## 关键目录
-- `src/main/java/com/hmdp/controller/` - API 入口层
-- `src/main/java/com/hmdp/service/` - 业务接口与实现
-- `src/main/java/com/hmdp/mapper/` - 数据访问层
+- `src/main/java/com/travelplus/controller/` - API 入口层
+- `src/main/java/com/travelplus/service/` - 业务接口与实现
+- `src/main/java/com/travelplus/mapper/` - 数据访问层
 - `src/main/resources/` - 配置、SQL 与 Lua 脚本
-- `src/test/java/com/hmdp/` - 测试代码
+- `src/test/java/com/travelplus/` - 测试代码
 ## 边界约束
 - 仅依据代码已存在事实编写技术文档，不臆造路径、命令、接口。
 - 业务规则与历史经验优先写入 `manual/`，由团队持续维护。

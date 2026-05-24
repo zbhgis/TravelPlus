@@ -9,8 +9,8 @@ alwaysApply: false
 项目根/
 ├── src/
 │   ├── main/
-│   │   ├── java/com/hmdp/
-│   │   │   ├── HmDianPingApplication.java
+│   │   ├── java/com/travelplus/
+│   │   │   ├── TravelPlusApplication.java
 │   │   │   ├── config/
 │   │   │   ├── controller/
 │   │   │   ├── service/ + service/impl/
@@ -20,21 +20,21 @@ alwaysApply: false
 │   │   │   └── utils/
 │   │   └── resources/
 │   │       ├── application.yaml
-│   │       ├── db/hmdp.sql
+│   │       ├── db/travelplus.sql
 │   │       ├── mapper/*.xml
 │   │       └── *.lua
-│   └── test/java/com/hmdp/
+│   └── test/java/com/travelplus/
 ├── pom.xml
 └── AGENTS.md
 ```
 ## 模块职责
 | 目录 | 职责 | 关键文件 |
 | --- | --- | --- |
-| `src/main/java/com/hmdp/controller` | HTTP API 入口，参数接收与结果返回 | `VoucherOrderController.java`、`ShopController.java` |
-| `src/main/java/com/hmdp/service` | 业务接口定义与实现 | `IVoucherOrderService.java`、`impl/VoucherOrderServiceImpl.java` |
-| `src/main/java/com/hmdp/mapper` | MyBatis-Plus 持久层接口 | `VoucherOrderMapper.java`、`ShopMapper.java` |
-| `src/main/java/com/hmdp/config` | Web、Redis、MyBatis 等配置 | `MvcConfig.java`、`RedissonConfig.java` |
-| `src/main/java/com/hmdp/utils` | 通用工具与中间件能力 | `CacheClient.java`、`RedisIdWorker.java` |
+| `src/main/java/com/travelplus/controller` | HTTP API 入口，参数接收与结果返回 | `TicketOrderController.java`、`AttractionController.java` |
+| `src/main/java/com/travelplus/service` | 业务接口定义与实现 | `ITicketOrderService.java`、`impl/TicketOrderServiceImpl.java` |
+| `src/main/java/com/travelplus/mapper` | MyBatis-Plus 持久层接口 | `TicketOrderMapper.java`、`AttractionMapper.java` |
+| `src/main/java/com/travelplus/config` | Web、Redis、MyBatis 等配置 | `MvcConfig.java`、`RedissonConfig.java` |
+| `src/main/java/com/travelplus/utils` | 通用工具与中间件能力 | `CacheClient.java`、`RedisIdWorker.java` |
 | `src/main/resources` | 运行配置与 SQL/Lua 脚本 | `application.yaml`、`seckill.lua` |
 ## 模块依赖关系
 ```mermaid
