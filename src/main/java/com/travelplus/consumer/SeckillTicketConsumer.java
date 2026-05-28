@@ -1,0 +1,44 @@
+package com.travelplus.consumer;
+
+import com.travelplus.entity.TicketOrder;
+import com.travelplus.service.ITicketOrderService;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Component;
+
+import jakarta.annotation.Resource;
+
+@Slf4j
+@Component
+// @KafkaListener(id = "multiGroup", topics = "greeting")
+public class SeckillTicketConsumer {
+
+    @Resource
+    private ITicketOrderService ticketOrderService;
+
+    /**
+     * 【秒杀链路消息队列使用】-3
+     * Kafka 监听消费秒杀订单消息
+     * 指定之前创建的containerFactory
+     */
+    /*@KafkaListener(
+            containerFactory = "seckillTicketOrderKafkaListenerContainerFactory",
+            topics = "seckill-ticket-order"
+    )*/
+    public void processMessage(ConsumerRecord<String, Object> record, Acknowledgment ack) {
+        try {
+            // 获取消息内的数据
+            TicketOrder order = (TicketOrder) record.value();
+            // 生成订单 扣减库存 等等操作
+            ticketOrderService.createTicketOrder(order);
+            // 业务成功后提交确认ack
+            ack.acknowledge();
+        } catch (Exception e) {
+            log.error("消费异常: topic={}, offset={}, 原因={}", record.topic(), record.offset(), e.getMessage());
+            // 不要 acknowledge(), 直接让异常向上抛出, 让 errorHandler 处理
+            throw new RuntimeException("Deserialization failed", e);
+        }
+    }
+}

@@ -4,10 +4,10 @@ alwaysApply: false
 ---
 # AI README - 项目规则入口
 ## 项目总览
-hm-dianping 是一个基于 Spring Boot 的本地生活服务后端示例项目，聚焦用户、店铺、探店笔记与优惠券秒杀等能力，核心依赖 MySQL + Redis。
+TravelPlus 是一个基于 Spring Boot 的旅游服务平台后端示例项目，聚焦用户、景点、游记与门票秒杀等能力，核心依赖 MySQL + Redis。
 ```mermaid
 flowchart LR
- Entry[HmDianPingApplication] --> Web[Controller API]
+ Entry[TravelPlusApplication] --> Web[Controller API]
  Web --> Service[Service 业务层]
  Service --> Data[MyBatis-Plus + MySQL]
  Service --> Cache[Redis + Lua + Redisson]

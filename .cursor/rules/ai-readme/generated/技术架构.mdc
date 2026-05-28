@@ -18,9 +18,9 @@ flowchart TD
 ## 分层说明
 | 分层 | 职责 | 主要类/文件 |
 | --- | --- | --- |
-| 启动层 | 启动 Spring Boot、扫描 Mapper | `HmDianPingApplication.java` |
-| 接口层 | 暴露 REST API、返回统一 `Result` | `VoucherOrderController.java`、`UserController.java` |
-| 业务层 | 秒杀、店铺、博客等业务逻辑 | `VoucherOrderServiceImpl.java`、`ShopServiceImpl.java` |
+| 启动层 | 启动 Spring Boot、扫描 Mapper | `TravelPlusApplication.java` |
+| 接口层 | 暴露 REST API、返回统一 `Result` | `TicketOrderController.java`、`UserController.java` |
+| 业务层 | 秒杀、景点、游记等业务逻辑 | `TicketOrderServiceImpl.java`、`AttractionServiceImpl.java` |
 | 数据层 | CRUD 与条件查询 | `*Mapper.java`、`resources/mapper/*.xml` |
 | 基础设施层 | 拦截器、缓存、ID 生成、锁 | `MvcConfig.java`、`CacheClient.java`、`RedisIdWorker.java` |
 ## 技术栈

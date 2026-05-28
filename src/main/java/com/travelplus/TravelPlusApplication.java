@@ -1,0 +1,19 @@
+package com.travelplus;
+
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.retry.annotation.EnableRetry;
+
+@MapperScan("com.travelplus.mapper")
+@EnableRetry
+@EnableKafka
+@SpringBootApplication
+public class TravelPlusApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(TravelPlusApplication.class, args);
+    }
+
+}

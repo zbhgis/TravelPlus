@@ -5,41 +5,25 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.3.12.RELEASE</version>
+        <version>3.5.9</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.hmdp</groupId>
-    <artifactId>hm-dianping</artifactId>
+    <groupId>com.travelplus</groupId>
+    <artifactId>travelplus</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>hm-dianping</name>
-    <description>Demo project for Spring Boot</description>
+    <name>TravelPlus</name>
+    <description>TravelPlus 旅游服务平台后端</description>
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>24</java.version>
+        <!-- Lombok 1.18.38 起支持 JDK 24 -->
+        <lombok.version>1.18.38</lombok.version>
+        <!-- JDK 23+ 必须显式开启注解处理器，否则 Lombok 不生效 -->
+        <maven.compiler.proc>full</maven.compiler.proc>
     </properties>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
-            <exclusions>
-                <exclusion>
-                    <artifactId>spring-data-redis</artifactId>
-                    <groupId>org.springframework.data</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>lettuce-core</artifactId>
-                    <groupId>io.lettuce</groupId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-redis</artifactId>
-            <version>2.6.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.lettuce</groupId>
-            <artifactId>lettuce-core</artifactId>
-            <version>6.1.6.RELEASE</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -53,17 +37,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <!-- 确保pom.xml中包含正确的Kafka依赖 -->
+        <!-- Kafka 版本由 Boot 托管（spring-kafka 3.3.x），不再显式指定 -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-            <version>2.9.13</version>
-        </dependency>
-        <!-- kafka-clients -->
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
-            <version>2.6.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.retry</groupId>
@@ -73,11 +50,11 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-aspects</artifactId>
         </dependency>
+        <!-- MySQL 驱动换为 connector-j（支持 caching_sha2_password），版本由 Boot 托管 -->
         <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
-            <version>5.1.47</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -89,22 +66,28 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- MyBatis-Plus Boot3 专用 starter；3.5.9+ 分页需额外引入 jsqlparser 模块 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId>
-            <version>3.4.3</version>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>3.5.17</version>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>3.5.17</version>
         </dependency>
         <!--hutool-->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
-            <version>5.7.17</version>
+            <version>5.8.36</version>
         </dependency>
         <!--redisson-->
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson</artifactId>
-            <version>3.13.6</version>
+            <version>3.50.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
