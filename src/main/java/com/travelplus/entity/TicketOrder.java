@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【订单实体的实现】门票订单表 tb_ticket_order 实体，记录用户（userId）对门票（ticketId）的购买单。
+ * id 为雪花式全局 ID（IdType.INPUT，由 RedisIdWorker 生成）；秒杀下单走 Kafka 异步落库，
+ * 此实体同时充当消息载体（发送端 JSON 序列化 → 消费端 JSONUtil 反序列化）。
  * </p>
  *
  * @author TravelPlus

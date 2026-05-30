@@ -2,6 +2,7 @@ package com.travelplus.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import java.time.LocalDateTime;
 import java.io.Serializable;
@@ -11,7 +12,9 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 
+ * 【评论实体的实现】游记评论表 tb_travel_note_comment 实体。
+ * parentId=0 为一级评论，>0 表示挂在某条一级评论下的回复；answerId 为被回复的评论 id。
+ * icon/name 为 @TableField(exist=false) 的非表字段，查询时补充评论者信息（详细说明见字段注释）。
  * </p>
  *
  * @author TravelPlus
@@ -24,6 +27,28 @@ import lombok.experimental.Accessors;
 public class TravelNoteComment implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    /**
+     * 【评论功能的实现】用户图标（非表字段，不落库）
+     * <p>
+     * 实现细节：
+     * - @TableField(exist = false)：只用于响应传输，不映射 tb_travel_note_comment 表列，
+     *   MyBatis-Plus 查询/插入时自动忽略（风格同 TravelNote.icon）。
+     * - 由 queryComments 查询列表时经 IUserService.getById 补充，未取到时为 null。
+     */
+    @TableField(exist = false)
+    private String icon;
+
+    /**
+     * 【评论功能的实现】用户昵称（非表字段，不落库）
+     * <p>
+     * 实现细节：
+     * - @TableField(exist = false)：只用于响应传输，不映射 tb_travel_note_comment 表列，
+     *   MyBatis-Plus 查询/插入时自动忽略（风格同 TravelNote.name）。
+     * - 由 queryComments 查询列表时经 IUserService.getById 补充；用户不存在时兜底为"匿名"。
+     */
+    @TableField(exist = false)
+    private String name;
 
     /**
      * 主键

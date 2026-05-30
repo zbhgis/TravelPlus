@@ -14,6 +14,15 @@ import java.util.concurrent.TimeUnit;
 import static com.travelplus.utils.RedisConstants.LOGIN_USER_KEY;
 import static com.travelplus.utils.RedisConstants.LOGIN_USER_TTL;
 
+/**
+ * 【token刷新的实现】基于 Redis 的 token 解析与续期拦截器（在 LoginInterceptor 之前执行，注册顺序见 MvcConfig）。
+ * 逻辑：
+ * 1) 从请求头 authorization 读取 token，为空则放行（交给后续 LoginInterceptor 决定是否拦截）；
+ * 2) 以 login:token:{token} 为 key 查询 Redis Hash 中的用户信息；
+ * 3) Hash 为空说明 token 失效，放行但不清除登录态；
+ * 4) 存在则将 Hash 转 UserDTO 存入 UserHolder，并以 LOGIN_USER_TTL（30 分钟）滚动刷新 token 有效期；
+ * 5) afterCompletion 清理 UserHolder，防止线程复用串数据。
+ */
 public class RefreshTokenInterceptor implements HandlerInterceptor {
 
     private StringRedisTemplate stringRedisTemplate;

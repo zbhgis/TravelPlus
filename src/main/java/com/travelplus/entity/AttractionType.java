@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【景点类型实体的实现】景点类型表 tb_attraction_type 实体，定义景点分类（如自然风光/人文古迹），
+ * 前端分类导航按 sort 升序展示 name + icon；createTime/updateTime 用 @JsonIgnore 不参与 JSON 响应。
  * </p>
  *
  * @author TravelPlus

@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【游记实体的实现】游记表 tb_travel_note 实体，用户发布的图文游记（标题/多图/正文，可关联景点）。
+ * icon/name/isLike 为 @TableField(exist=false) 的非表字段，查询时补充作者信息与当前用户点赞态。
+ * 点赞数 liked 与 Redis 集合 note:liked:{noteId} 联动，点赞接口先写 Redis 再异步同步 DB。
  * </p>
  *
  * @author TravelPlus

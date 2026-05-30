@@ -3,6 +3,9 @@ package com.travelplus.utils;
 import cn.hutool.core.util.StrUtil;
 
 /**
+ * 【格式校验工具的实现】基于 RegexPatterns 中预定义的正则，对外提供手机号/邮箱/验证码格式校验。
+ * 统一走 mismatch() 私有方法：入参为空或空串一律视为「无效」，非空则用 String.matches 全量匹配正则。
+ * 命名语义为 isXxxInvalid，返回 true 表示格式不合法（业务侧据此直接拒绝或提示），供登录/注册/验证码发送流程复用。
  * @author TravelPlus
  */
 public class RegexUtils {

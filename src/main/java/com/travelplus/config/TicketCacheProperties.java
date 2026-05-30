@@ -6,6 +6,12 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
+/**
+ * 【门票列表缓存配置属性的实现】绑定 application.yaml 中 travelplus.cache.ticket-list 前缀的配置项。
+ * 控制门票列表的三级缓存策略：
+ * mode=mysql（仅查 DB）/ redis（Redis + DB 回源）/ caffeine（Caffeine 本地缓存 + Redis + DB 回源，默认），
+ * refreshAfterWrite 控制本地缓存刷新、expireAfterWrite 控制本地缓存硬过期、redisTtl 控制 Redis 缓存 TTL。
+ */
 @Data
 @Component
 @ConfigurationProperties(prefix = "travelplus.cache.ticket-list")

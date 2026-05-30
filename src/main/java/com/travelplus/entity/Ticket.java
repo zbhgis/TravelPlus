@@ -13,7 +13,10 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【门票实体的实现】门票表 tb_ticket 实体，归属于某个景点（attractionId）。
+ * payValue/actualValue 金额单位分为「分」；status 控制上架状态。
+ * stock/beginTime/endTime 为 @TableField(exist=false) 的非表字段，由秒杀券关联表 tb_seckill_ticket
+ * 动态装配：三者非空即表示该门票为秒杀券（前端据此展示秒杀入口）。
  * </p>
  *
  * @author TravelPlus

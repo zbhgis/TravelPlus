@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+uploads/
+
+### Tool / runtime artifacts ###
+.omo/
+.playwright-mcp/
+logs/
+home.png

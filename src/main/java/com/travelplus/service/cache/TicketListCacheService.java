@@ -24,6 +24,18 @@ import static com.travelplus.utils.RedisConstants.CACHE_TICKET_LIST_KEY;
 
 @Slf4j
 @Service
+/**
+ * 【秒杀门票信息多级缓存改造】门票列表多级缓存服务：L1 Caffeine 本地缓存 + L2 Redis 缓存 + DB 兜底
+ * <p>
+ * 实现细节：
+ * - 缓存层级：L1=Caffeine LoadingCache（key=attractionId，value=门票列表 JSON），
+ *   refreshAfterWrite 触发异步刷新（读旧值返回）、expireAfterWrite 硬过期兜底；
+ *   L2=Redis key=cache:ticket:list:{attractionId} 存门票列表 JSON；DB 为最终兜底数据源。
+ * - 加载链路（loadFromRedisThenDb）：L1 miss → 读 L2 Redis，命中直接返回；miss → 查 DB，
+ *   DB 数据非空才写回 Redis（避免空数据缓存），返回给 L1。
+ * - 模式开关：cacheProperties.getMode() 支持 mysql（直查 DB）/redis（L2+DB）/caffeine（默认，三级链路）。
+ * - 缓存项缺失时由 CacheLoader.load 自动回源，Caffeine 保证同一 key 并发只回源一次。
+ */
 public class TicketListCacheService {
 
     @Resource
@@ -38,6 +50,13 @@ public class TicketListCacheService {
 
     // 2. 【秒杀门票信息多级缓存改造】caffeine缓存的初始化,会在项目启动时调用
     @PostConstruct
+    /**
+     * 【秒杀门票信息多级缓存改造】初始化 Caffeine 本地缓存
+     * <p>
+     * 实现细节：maximumSize(1000) 限制容量；refreshAfterWrite（到点后下次访问异步刷新，读旧值返回，
+     * 提升数据一致性）与 expireAfterWrite（硬过期，过期后回源加载）两个时间均取
+     * TicketCacheProperties 配置；CacheLoader.load 回源到 loadFromRedisThenDb（L2 Redis → DB）。
+     */
     public void initCache() {
         // 3. 【秒杀门票信息多级缓存改造】本地缓存的配置项(刷新时间、过期时间)、Redis缓存的过期时间
         /*
@@ -65,6 +84,14 @@ public class TicketListCacheService {
 
 
     // 通过景点ID获取景点的秒杀门票列表
+    /**
+     * 【秒杀门票信息多级缓存改造】按景点id获取门票列表（按配置模式选择缓存链路）
+     * <p>
+     * 实现细节：mode=mysql 直查 DB；mode=redis 走 L2 Redis+DB（loadFromRedisThenDb）；
+     * 默认 caffeine 直接取本地缓存，miss 时由 load 函数回源并缓存。
+     * @param attractionId 景点id
+     * @return 该景点的门票列表（无则空列表）
+     */
     public List<Ticket> getTicketByAttractionId(Long attractionId) {
         String mode = cacheProperties.getMode();
         switch (mode.toLowerCase(Locale.ROOT)) {
@@ -81,6 +108,15 @@ public class TicketListCacheService {
 
 
     // 本地缓存的load逻辑
+    /**
+     * 【秒杀门票信息多级缓存改造】L2 Redis → DB 的加载链路（Caffeine load 回源入口）
+     * <p>
+     * 实现细节：先读 Redis key=cache:ticket:list:{attractionId}（JSON），命中反序列化返回；
+     * miss 则查 DB（loadFromDb），DB 数据非空才写回 Redis（TTL 取配置 redisTtl），
+     * 避免将空数据写入缓存造成缓存穿透。
+     * @param attractionId 景点id
+     * @return 门票列表（无则空列表）
+     */
     private List<Ticket> loadFromRedisThenDb(Long attractionId) {
         String key = CACHE_TICKET_LIST_KEY + attractionId;
 
@@ -102,6 +138,14 @@ public class TicketListCacheService {
         return tickets;
     }
 
+    /**
+     * 【秒杀门票信息多级缓存改造】直接查询 DB 获取门票列表（最终兜底数据源）
+     * <p>
+     * 实现细节：ticketMapper.queryTicketOfAttraction(attractionId) 联表/条件查询；
+     * 返回 null 时归一为空列表，避免上层空指针。
+     * @param attractionId 景点id
+     * @return 门票列表（无则空列表）
+     */
     private List<Ticket> loadFromDb(Long attractionId) {
         List<Ticket> tickets = ticketMapper.queryTicketOfAttraction(attractionId);
         return tickets == null ? Collections.emptyList() : tickets;

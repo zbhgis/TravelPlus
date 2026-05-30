@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【用户实体的实现】用户表 tb_user 实体，认证与用户基础信息。
+ * phone 为登录账号，password 经 PasswordEncoder 加盐 MD5 存储（{盐}@{摘要}）；
+ * 昵称默认 user_{id} 格式；icon 默认指向系统预置头像（见字段注释），编辑主页可上传覆盖。
  * </p>
  *
  * @author TravelPlus
@@ -49,8 +51,15 @@ public class User implements Serializable {
 
     /**
      * 用户头像
+     * 【注册默认头像的实现】默认指向系统预置的默认头像 /imgs/user/avatar/default.png（DiceBear 生成），
+     * 新注册用户在未上传头像前即可展示统一默认头像；用户编辑主页上传后覆盖该字段。
      */
-    private String icon = "";
+    private String icon = "/imgs/user/avatar/default.png";
+
+    /**
+     * 【用户主页编辑的实现】用户背景图路径（个人主页编辑上传，默认空串=无背景图）
+     */
+    private String bgImage = "";
 
     /**
      * 创建时间

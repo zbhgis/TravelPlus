@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【用户详情实体的实现】用户扩展信息表 tb_user_info 实体，主键 userId 与 tb_user.id 一一对应，
+ * 保存城市/介绍/粉丝数/关注数/性别/生日/积分/会员级别等主页展示信息，
+ * 以及 followVisible/fansVisible 关注粉丝列表的隐私可见性开关（1 可见 / 0 不可见）。
  * </p>
  *
  * @author TravelPlus
@@ -72,6 +74,16 @@ public class UserInfo implements Serializable {
      * 会员级别，0~9级,0代表未开通会员
      */
     private Boolean level;
+
+    /**
+     * 【隐私设置的实现】关注列表是否公开：1=可见（默认），0=不可见（他人无法查看我的关注列表）
+     */
+    private Integer followVisible;
+
+    /**
+     * 【隐私设置的实现】粉丝列表是否公开：1=可见（默认），0=不可见（他人无法查看我的粉丝列表）
+     */
+    private Integer fansVisible;
 
     /**
      * 创建时间

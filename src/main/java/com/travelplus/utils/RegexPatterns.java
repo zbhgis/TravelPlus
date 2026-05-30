@@ -1,6 +1,9 @@
 package com.travelplus.utils;
 
 /**
+ * 【正则表达式常量的实现】集中定义业务侧字段格式校验所需的正则，供 RegexUtils 调用。
+ * 手机号：1 开头、第二位按运营商号段（3/4/5/6/7/8/9）匹配共 11 位；
+ * 邮箱：用户名@域名.后缀的标准结构；密码：4~32 位字母/数字/下划线；验证码：6 位字母或数字。
  * @author TravelPlus
  */
 public abstract class RegexPatterns {

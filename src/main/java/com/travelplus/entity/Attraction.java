@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 【景点实体的实现】景点表 tb_attraction 实体，一个景点归属一个类型（typeId），
+ * 包含名称、商圈/地址、经纬度（x,y，配合 GEO 按距离检索）、均价（整数）、销量、评论数与评分（×10 存储避免小数）。
+ * images 为逗号分隔的多图路径，/imgs/ 开头；distance 为 @TableField(exist=false) 的非表字段，用于列表按距离展示。
  * </p>
  *
  * @author TravelPlus

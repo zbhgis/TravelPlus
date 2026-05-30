@@ -12,7 +12,9 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 秒杀门票表，与门票是一对一关系
+ * 【秒杀门票实体的实现】秒杀门票表 tb_seckill_ticket，与门票 tb_ticket 一对一（主键即 ticket_id）。
+ * 秒杀下单链路：Lua 脚本预检（存在性/未开始/已结束/一人一单/库存）→ 扣 Redis 库存 → 发 Kafka 消息，
+ * 由 SeckillTicketConsumer 消费后经 createTicketOrder 落库扣减 DB 库存。
  * </p>
  *
  * @author TravelPlus

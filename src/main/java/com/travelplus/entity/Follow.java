@@ -11,7 +11,8 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 
+ * 【关注关系的实现】用户关注关系表 tb_follow 实体，userId 关注 followUserId，
+ * 支撑关注/取关（PUT /follow/{id}/{isFollow}）、是否关注与共同关注（交集）查询。
  * </p>
  *
  * @author TravelPlus
