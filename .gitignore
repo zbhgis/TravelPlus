@@ -38,3 +38,6 @@ AGENTS.md
 # ---- OS ----
 .DS_Store
 Thumbs.db
+
+# ---- 过程文档(不入库) ----
+travelplus-backend/docs/
