@@ -8,6 +8,7 @@ TravelPlus 是一个前后端分离的旅游服务平台示例项目，核心能
 travelplus/
 ├── travelplus-backend/      # 后端（Spring Boot，端口 8081）
 ├── travelplus-frontend/     # 前端（纯静态 H5 SPA，端口 19608）
+├── docker-compose.yml       # 全局依赖编排：MySQL + Kafka + ES + Redis 集群 一键启动
 ├── README.md                # 项目根说明（本文件）
 └── .gitignore               # 仓库级统一忽略规则
 ```
@@ -28,9 +29,24 @@ travelplus/
 
 ## 启动方式
 
-依赖容器（MySQL / Redis 集群 / Kafka / Elasticsearch）均通过 Docker Compose 编排，配置见 `travelplus-backend/docker/`。
+### 第一步：一键启动全部依赖容器（MySQL / Redis 集群 / Kafka / Elasticsearch）
 
-### 启动后端（端口 8081）
+所有依赖统一由项目根目录 `docker-compose.yml` 编排，一条命令全部拉起：
+
+```bash
+# 在项目根目录执行
+docker compose -f docker-compose.yml up -d
+```
+
+- 包含 8 个容器：`travelplus-mysql`（3307）、`travelplus-kafka`（9092）、`travelplus-es`（9400）、
+  `redis-master`（6380）/ `redis-slave`（6381）+ 哨兵 `redis-sentinel1/2/3`（26379/26380/26381）。
+- 数据持久化：MySQL / Kafka / Redis 均复用既有持久化卷（compose 内 `external: true` 引用），
+  重建容器不会丢数据；ES 索引为派生数据，后端启动时自动从 MySQL 全量重建。
+- 停止全部依赖：`docker compose -f docker-compose.yml stop`；移除容器（卷保留）：`down`。
+- 历史说明：`travelplus-backend/docker/redis-sentinel/docker-compose.yml` 为 Redis 集群
+  独立编排，现已被全局 compose 涵盖并保持兼容（哨兵配置文件仍复用其中 `sentinel*.conf`）。
+
+### 第二步：启动后端（端口 8081）
 
 ```bash
 cd travelplus-backend
@@ -39,7 +55,7 @@ mvn spring-boot:run
 
 或双击 `travelplus-backend/start-backend.bat`（后台静默启动，日志在 `travelplus-backend/logs/backend.log`）。
 
-### 启动前端（端口 19608）
+### 第三步：启动前端（端口 19608）
 
 ```bash
 cd travelplus-frontend
@@ -58,6 +74,8 @@ python -m http.server 19608
 
 ## 注意事项
 
-- 演示环境密码统一为 `123456`（MySQL、Redis 等）。
+- 演示环境密码统一为 `123456`（MySQL、Redis 等），仅作开源演示用途，生产环境请改为环境变量注入。
+- 数据持久化：`docker compose down` 不会删除持久化卷（`external: true`），数据长期保留；
+  如需彻底清理请显式执行 `docker volume rm`。
 - 本机 `6379` 端口是其他项目的 Redis（company-agent-redis），与 TravelPlus 无关，请勿混淆。
 - 前后端已合并为单一 git 仓库（monorepo），根目录即仓库根；`travelplus-backend/` 与 `travelplus-frontend/` 各自保留独立的提交历史。
