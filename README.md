@@ -10,7 +10,8 @@ travelplus/
 ├── travelplus-frontend/     # 前端（纯静态 H5 SPA，端口 19608）
 ├── docker-compose.yml       # 全局依赖编排：MySQL + Kafka + ES + Redis 集群 一键启动
 ├── README.md                # 项目根说明（本文件）
-└── .gitignore               # 仓库级统一忽略规则
+├── .gitignore               # 仓库级统一忽略规则
+└── .omo/                    # 开发笔记（git 忽略，不入库）
 ```
 
 > **monorepo 说明**：本项目已由前后端两个独立 git 仓库合并为单一仓库（本目录），双方提交历史均完整保留。
@@ -24,8 +25,21 @@ travelplus/
 - **缓存**：Redis 主从+哨兵集群（redis-master 6380 / redis-slave 6381 + 哨兵 26379/26380/26381，统一密码 123456）
 - **缓存框架**：Redisson + Caffeine（本地缓存）
 - **消息队列**：Kafka（Docker 容器，端口 9092，秒杀链路生产端使用）
-- **搜索引擎**：Elasticsearch
+- **搜索引擎**：Elasticsearch（索引为派生数据，后端启动时自动重建）
 - **前端**：原生 HTML/CSS/JS 单页应用（SPA）
+
+## 端口清单
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| 后端 | 8081 | Spring Boot（travelplus-backend） |
+| 前端 | 19608 | 静态 H5 SPA（travelplus-frontend） |
+| MySQL | 3307 | 主业务库（库名 travelplus） |
+| Kafka | 9092 | 秒杀链路消息队列 |
+| Elasticsearch | 9400 | 全文搜索 |
+| Redis 主节点 | 6380 | 全部读写入口 |
+| Redis 从节点 | 6381 | 实时复制，故障转移候选主 |
+| Redis 哨兵 | 26379 / 26380 / 26381 | 高可用监控与自动故障转移 |
 
 ## 启动方式
 
@@ -40,11 +54,13 @@ docker compose -f docker-compose.yml up -d
 
 - 包含 8 个容器：`travelplus-mysql`（3307）、`travelplus-kafka`（9092）、`travelplus-es`（9400）、
   `redis-master`（6380）/ `redis-slave`（6381）+ 哨兵 `redis-sentinel1/2/3`（26379/26380/26381）。
+- Redis 集群为**主从 + 哨兵高可用**架构：master 故障时哨兵自动将 slave 提升为新主，
+  后端（Redisson）无需改配置即可重连。
 - 数据持久化：MySQL / Kafka / Redis 均复用既有持久化卷（compose 内 `external: true` 引用），
   重建容器不会丢数据；ES 索引为派生数据，后端启动时自动从 MySQL 全量重建。
+- 哨兵配置文件 `sentinel*.conf` 位于 `travelplus-backend/docker/redis-sentinel/`，
+  由根 compose 挂载引用（原独立 Redis 编排已移除，统一由根编排管理）。
 - 停止全部依赖：`docker compose -f docker-compose.yml stop`；移除容器（卷保留）：`down`。
-- 历史说明：`travelplus-backend/docker/redis-sentinel/docker-compose.yml` 为 Redis 集群
-  独立编排，现已被全局 compose 涵盖并保持兼容（哨兵配置文件仍复用其中 `sentinel*.conf`）。
 
 ### 第二步：启动后端（端口 8081）
 
@@ -70,7 +86,8 @@ python -m http.server 19608
 
 ## 环境变量
 
-- `DEEPSEEK_API_KEY`：AI 客服功能调用 DeepSeek API 所需密钥，需在启动后端前配置。
+- `DEEPSEEK_API_KEY`：AI 客服功能调用 DeepSeek API 所需密钥，运行时通过环境变量提供；
+  未配置时默认空值，应用仍可正常启动，AI 客服走兜底逻辑。
 
 ## 注意事项
 

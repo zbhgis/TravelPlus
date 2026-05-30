@@ -2,14 +2,18 @@
 
 纯静态、零构建、零依赖的移动端单页应用，对接 TravelPlus 后端 API。
 
+> **monorepo 说明**：本项目现为 TravelPlus 单一仓库（monorepo）的一部分，位于
+> `E:\AAAproject\travelplus\travelplus-frontend`，与后端 `travelplus-backend`、根目录
+> `docker-compose.yml` 一同管理。
+
 ## 启动方式
 
-### 方式 1：双击 `start.bat`
-前端已独立于后端目录 `travelplus-frontend/`。直接双击 `start.bat`，会自动启动 Python HTTP 服务；推荐使用 `start-frontend.bat` 静默启动（无控制台窗口，日志写入 `logs/frontend.log`）。
+### 方式 1：双击 `start-frontend.bat`
+直接双击 `start-frontend.bat`，会自动静默启动 Python HTTP 服务（无控制台窗口，日志写入 `logs/frontend.log`）。
 
 ### 方式 2：命令行
 ```bash
-cd E:\AAAproject\travelplus-frontend
+cd E:\AAAproject\travelplus\travelplus-frontend
 python -m http.server 19608
 ```
 然后浏览器打开 http://localhost:19608
@@ -18,6 +22,8 @@ python -m http.server 19608
 将 `travelplus-frontend/` 目录作为静态文件根目录即可，如 nginx、live-server 等。
 
 ## 配置
+
+**依赖后端**：页面所有数据均来自后端 API，需先启动后端（端口 8081）与根 `docker-compose.yml` 中的依赖服务。
 
 编辑 `js/config.js`：
 
