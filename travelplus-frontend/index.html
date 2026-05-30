@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<title>TravelPlus</title>
+<link rel="stylesheet" href="css/app.css"/>
+<!-- 【旅行功能的实现】Leaflet CDN 引入——纯前端地图方案，OSM 瓦片，零 key；若 CDN 不可达页面降级提示 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<!-- 【全局搜索的实现】全局搜索入口置顶条——tab 页（首页/旅行/消息/我的）显示，点击跳 #/search -->
+<div id="global-search" class="global-search-bar hidden">
+  <div class="global-search-inner">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <span>搜索景点、游记、用户...</span>
+  </div>
+</div>
+<div id="app" class="app-container"></div>
+<div id="tabbar" class="tabbar"></div>
+<div id="toast" class="toast"></div>
+<script type="module" src="js/main.js"></script>
+<!-- 【旅行功能的实现】Leaflet JS CDN——地图初始化与交互依赖；若加载失败页面内检测 L 全局变量并提示降级 -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- 【秒杀券的实现】JsBarcode CDN——条形码渲染依赖；若加载失败页面内 CSS 条纹降级显示 -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+</body>
+</html>
