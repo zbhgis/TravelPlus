@@ -41,3 +41,6 @@ Thumbs.db
 
 # ---- 过程文档(不入库) ----
 travelplus-backend/docs/
+
+# ---- 压测造数脚本(不入库) ----
+travelplus-backend/scripts/perf/seed_*.sql
