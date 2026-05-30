@@ -30,10 +30,8 @@ travelplus/
 ├── docker-compose.yml       # 全局依赖编排：MySQL + Kafka + ES + Redis 集群 一键启动
 ├── README.md                # 项目根说明（本文件）
 ├── .gitignore               # 仓库级统一忽略规则
-└── .omo/                    # 开发笔记（git 忽略，不入库）
 ```
 
-> **monorepo 说明**：本项目已由前后端两个独立 git 仓库合并为单一仓库（本目录），双方提交历史均完整保留。
 > - `travelplus-backend/`：Java 项目，含 `src/`、`docker/`、`scripts/`（秒杀/搜索压测脚本）、`docs/` 等，历史包含 2026-02 至今的完整提交链。
 > - `travelplus-frontend/`：纯静态页面，含 `css/`、`js/`、`index.html`，通过 `python -m http.server` 提供访问，历史同样完整保留。
 
@@ -53,7 +51,6 @@ travelplus/
 
 - JDK 24 + Maven 3.9.x
 - Docker（用于一键拉起 MySQL / Redis 集群 / Kafka / Elasticsearch）
-- Python 3（仅前端静态服务需要，也可用任意静态服务器替代）
 
 ### 启动步骤
 
@@ -167,9 +164,3 @@ python -m http.server 19608
 - 演示环境密码统一为 `123456`（MySQL、Redis 等），仅作开源演示用途，生产环境请改为环境变量注入。
 - 数据持久化：`docker compose down` 不会删除持久化卷（`external: true`），数据长期保留；
   如需彻底清理请显式执行 `docker volume rm`。
-- 本机 `6379` 端口是其他项目的 Redis（company-agent-redis），与 TravelPlus 无关，请勿混淆。
-- 前后端已合并为单一 git 仓库（monorepo），根目录即仓库根；`travelplus-backend/` 与 `travelplus-frontend/` 各自保留独立的提交历史。
-
-## License
-
-本项目尚未指定开源许可证，默认保留所有权利（All Rights Reserved）。如用于学习与二次开发，请自行选择合适的开源许可证（如 MIT / Apache-2.0）并补充 `LICENSE` 文件。
