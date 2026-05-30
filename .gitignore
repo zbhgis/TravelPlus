@@ -1,0 +1,37 @@
+# ---- Java / Maven (backend) ----
+target/
+HELP.md
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+.sts4-cache
+.apt_generated
+.factorypath
+.springBeans
+.vscode/
+nbproject/private/
+nbbuild/
+nbdist/
+nb/.gradle/
+
+# ---- Runtime / tool artifacts ----
+.omo/
+.playwright-mcp/
+.codegraph/
+logs/
+*.log
+uploads/
+home.png
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
