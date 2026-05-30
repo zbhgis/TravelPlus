@@ -6,13 +6,15 @@ TravelPlus 是一个前后端分离的旅游服务平台示例项目，核心能
 
 ```
 travelplus/
-├── travelplus-backend/      # 后端（Spring Boot，端口 8081，独立 git 仓库）
-├── travelplus-frontend/     # 前端（纯静态 H5 SPA，端口 19608，独立 git 仓库）
-└── README.md                # 项目根说明（本文件）
+├── travelplus-backend/      # 后端（Spring Boot，端口 8081）
+├── travelplus-frontend/     # 前端（纯静态 H5 SPA，端口 19608）
+├── README.md                # 项目根说明（本文件）
+└── .gitignore               # 仓库级统一忽略规则
 ```
 
-- 后端：`travelplus-backend/`，Java 项目，含 `src/`、`docker/`、`scripts/`、`docs/` 等。
-- 前端：`travelplus-frontend/`，纯静态页面，含 `css/`、`js/`、`index.html`，通过 `python -m http.server` 提供访问。
+> **monorepo 说明**：本项目已由前后端两个独立 git 仓库合并为单一仓库（本目录），双方提交历史均完整保留。
+> - `travelplus-backend/`：Java 项目，含 `src/`、`docker/`、`scripts/`、`docs/` 等，历史包含 2026-02 至今的完整提交链。
+> - `travelplus-frontend/`：纯静态页面，含 `css/`、`js/`、`index.html`，通过 `python -m http.server` 提供访问，历史同样完整保留。
 
 ## 技术栈
 
@@ -58,4 +60,4 @@ python -m http.server 19608
 
 - 演示环境密码统一为 `123456`（MySQL、Redis 等）。
 - 本机 `6379` 端口是其他项目的 Redis（company-agent-redis），与 TravelPlus 无关，请勿混淆。
-- 前后端为独立 git 仓库，各自维护提交历史。
+- 前后端已合并为单一 git 仓库（monorepo），根目录即仓库根；`travelplus-backend/` 与 `travelplus-frontend/` 各自保留独立的提交历史。
