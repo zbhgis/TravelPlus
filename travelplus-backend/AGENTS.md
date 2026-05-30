@@ -9,7 +9,7 @@
 ## 运行环境
 - JDK 24 + Maven 3.9.x + Spring Boot 3.5.9
 - MySQL 8.0（Docker 容器 travelplus-mysql，端口 3307，root/123456，库名 travelplus）
-- Redis（主从+3 哨兵集群：redis-master 6380 / redis-slave 6381 + 哨兵 26379/26380/26381，统一密码 123456；配置见 docker/redis-sentinel/docker-compose.yml。注：6379（company-agent-redis）为其他项目 Redis，TravelPlus 仅曾以它作迁移源，现已完全脱离）
+- Redis（主从+3 哨兵集群：redis-master 6380 / redis-slave 6381 + 哨兵 26379/26380/26381，统一密码 123456；编排统一在根目录 docker-compose.yml，哨兵配置见 docker/redis-sentinel/sentinel*.conf。注：6379（company-agent-redis）为其他项目 Redis，TravelPlus 仅曾以它作迁移源，现已完全脱离）
 - Kafka（Docker 容器 travelplus-kafka，端口 9092，秒杀链路生产端使用）
 ## 关键目录
 - `src/main/java/com/travelplus/controller/` - API 入口层

@@ -17,8 +17,9 @@
 #   4. 网络统一为 travelplus-net（172.41.0.0/16），避开 Docker 默认地址池(172.17~172.31)
 #      与 WSL2 网段(172.30.0.0/16)以及旧 redis-sentinel 网络(172.40.0.0/16)，
 #      防止子网重叠导致哨兵到宿主网关 IP 的 hairpin 路由异常。
-#   5. Redis 拓扑与配置完全继承 docker/redis-sentinel/docker-compose.yml（该文件保留，
-#      本全局编排为其上位替代）：redis-master(6380)+redis-slave(6381)+哨兵×3(26379/80/81)，
+#   5. Redis 拓扑与配置完全继承原 docker/redis-sentinel/docker-compose.yml（该独立编排已移除，
+#      统一由本全局编排管理；哨兵配置文件 sentinel*.conf 仍保留于原目录并被下方 volumes 复用）：
+#      redis-master(6380)+redis-slave(6381)+哨兵×3(26379/80/81)，
 #      密码统一 123456，哨兵通过宿主可达 IP 172.30.144.1 探测主节点（WSL2 网关，机器不同需改）。
 #   6. 端口与后端 application.yaml 一一对应：MySQL 3307、Redis 哨兵 26379/80/81、
 #      Kafka 9092、ES 9400，均无需修改后端配置即可直连。
