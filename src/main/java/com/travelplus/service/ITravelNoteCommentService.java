@@ -32,4 +32,26 @@ public interface ITravelNoteCommentService extends IService<TravelNoteComment> {
      */
     Result queryComments(Long noteId, Integer current);
 
+    /**
+     * 【评论删除的实现】删除评论（评论作者或该游记作者可删）
+     * <p>
+     * 实现细节：评论作者（comment.userId==当前用户）或游记作者（note.userId==当前用户）
+     * 有权删除；删除该评论及其直接回复（parent_id=id），并同步游记 comments 计数
+     * -（1+被删回复数），见 TravelNoteCommentServiceImpl.deleteComment。
+     * @param id 评论id
+     * @return 删除成功返回 ok；无权限 fail"无权删除"
+     */
+    Result deleteComment(Long id);
+
+    /**
+     * 【评论置顶的实现】置顶/取消置顶一级评论（仅游记作者可操作）
+     * <p>
+     * 实现细节：仅一级评论（parent_id=0）可置顶；同一游记最多置顶 3 条，
+     * 超限时取消最旧的置顶再置顶新的，见 TravelNoteCommentServiceImpl.topComment。
+     * @param id  评论id
+     * @param top true=置顶，false=取消置顶
+     * @return 操作成功返回 ok；无权限 fail"无权操作"
+     */
+    Result topComment(Long id, Boolean top);
+
 }

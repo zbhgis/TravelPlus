@@ -87,6 +87,17 @@ public class TravelNoteComment implements Serializable {
     private Integer liked;
 
     /**
+     * 【评论置顶的实现】置顶标志，1=置顶，0=不置顶
+     * <p>
+     * 实现细节：
+     * - 对应 tb_travel_note_comment.is_top 表字段（TINYINT NOT NULL DEFAULT 0）。
+     * - 仅一级评论（parent_id=0）可置顶，由游记作者通过 topComment 设置/取消；
+     *   同一游记最多置顶 3 条，超出时取消最旧的置顶（见 TravelNoteCommentServiceImpl.topComment）。
+     * - queryComments 返回时随记录透出，前端据此渲染"置顶"标识与排序。
+     */
+    private Integer isTop;
+
+    /**
      * 状态，0：正常，1：被举报，2：禁止查看
      */
     private Boolean status;

@@ -10,6 +10,7 @@ import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * <p>
@@ -59,6 +60,18 @@ public class TravelNote implements Serializable {
     private Boolean isLike;
 
     /**
+     * 是否收藏过了（登录用户查询时补充，未登录为 null）
+     */
+    @TableField(exist = false)
+    private Boolean isFavorite;
+
+    /**
+     * 收藏数量（详情查询时实时统计）
+     */
+    @TableField(exist = false)
+    private Integer favoriteCount;
+
+    /**
      * 标题
      */
     private String title;
@@ -82,6 +95,21 @@ public class TravelNote implements Serializable {
      * 评论数量
      */
     private Integer comments;
+
+    /**
+     * 【笔记可见性的实现】笔记可见性：0=公开（默认，所有人可见），1=仅自己可见。
+     * 仅自己可见的笔记在热门列表/他人主页/关注 Feed/全局搜索中对非作者过滤，
+     * 详情接口对非作者 fail"该笔记仅作者可见"；本人始终可见（含"我的笔记"列表）。
+     */
+    private Integer visible;
+
+    /**
+     * 【游记关联景点的实现】关联景点信息 {id,name,image}（@TableField(exist=false) 非表字段，
+     * 游记详情查询时若 attractionId 非空则 join tb_attraction 补全，作为游记正文的景点入口；
+     * 未关联景点保持 null，见 TravelNoteServiceImpl.attachAttractionInfo）
+     */
+    @TableField(exist = false)
+    private Map<String, Object> attraction;
 
     /**
      * 创建时间

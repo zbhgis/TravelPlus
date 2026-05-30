@@ -11,10 +11,12 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static com.travelplus.utils.RedisConstants.CACHE_NULL_TTL;
+import static com.travelplus.utils.RedisConstants.CACHE_TTL_JITTER_SECONDS;
 import static com.travelplus.utils.RedisConstants.LOCK_ATTRACTION_KEY;
 
 /**
@@ -38,18 +40,32 @@ public class CacheClient {
     }
 
     /**
-     * 普通写入：将 value 序列化为 JSON 存入 Redis
+     * 【缓存雪崩预防-错峰过期的实现】普通写入：将 value 序列化为 JSON 存入 Redis，TTL 在基准上叠加随机抖动错峰过期。
+     * 实现细节：
+     * - 为什么统一在 set()：所有缓存写入（queryWithPassThrough / queryWithMutex 的写缓存均走本方法）自动错峰，
+     *   各调用方无需感知，基准 TTL 不变（30 分钟景点 / 10 分钟门票），仅过期时刻被随机打散，避免同批 key 同时失效集中回源 DB。
+     * - 为什么用 ThreadLocalRandom：高并发下避免 Math.random() 的全局原子竞争（CAS 自旋），每线程独立种子无共享状态，性能更好且无副作用。
+     * - 随机范围 0~60 秒（基准 30 分钟的 ~3%）：太小效果差（同批 key 仍集中失效），
+     *   太大缓存提前失效频繁回源 DB 造成不必要的 DB 压力，60 秒为经验折中值。
+     * - 空值占位不受影响：CACHE_NULL_TTL 占位在 queryWithPassThrough/queryWithMutex 内直调 stringRedisTemplate.set，
+     *   不走本方法，保持固定 2 分钟（尽快让真实数据可见）。
+     * - 逻辑过期 setWithLogicalExpire 不走本方法：它写 RedisData 且 key 无物理 TTL（物理永不过期，靠 expireTime 字段判断），
+     *   若误加物理 TTL 会破坏逻辑过期语义，故保持直调 stringRedisTemplate。
      * @param key   Redis key
      * @param value 任意对象，经 JSONUtil 序列化
-     * @param time  过期时间
+     * @param time  过期时间（基准值）
      * @param unit  过期时间单位
      */
     public void set(String key, Object value, Long time, TimeUnit unit) {
-        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), time, unit);
+        // 基准秒数 + 随机抖动（0~300 秒），最终以 SECONDS 写入，实现同批 key 错峰过期
+        long finalSeconds = unit.toSeconds(time) + ThreadLocalRandom.current().nextLong(0, CACHE_TTL_JITTER_SECONDS);
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), finalSeconds, TimeUnit.SECONDS);
     }
 
     /**
-     * 逻辑过期写入：封装为 RedisData（data + expireTime）写入，key 本身不设置物理过期
+     * 【缓存雪崩预防-错峰过期的实现】逻辑过期写入：封装为 RedisData（data + expireTime）写入，key 本身不设置物理过期。
+     * 注意：本方法直调 stringRedisTemplate，不走 set()——key 无物理 TTL（靠 expireTime 字段判断逻辑过期），
+     * 若经 set() 叠加随机物理 TTL 会破坏逻辑过期语义，故保持直调不受错峰随机化影响。
      * @param key   Redis key
      * @param value 业务数据
      * @param time  逻辑过期时长

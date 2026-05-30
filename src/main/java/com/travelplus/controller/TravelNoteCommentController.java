@@ -56,4 +56,38 @@ public class TravelNoteCommentController {
         return commentService.queryComments(noteId, current);
     }
 
+    /**
+     * 【评论删除的实现】删除评论（评论作者或该游记作者可删）
+     * <p>
+     * 实现细节：
+     * - DELETE /note-comments/{id} 会被 LoginInterceptor 拦截，未登录返回 401；
+     *   权限校验在 service 内完成（评论作者或游记作者任一即可），无权限 fail"无权删除"。
+     * - 删除该评论及其直接回复（parent_id=id），并同步游记 comments 计数 -（1+被删回复数）。
+     * @param id 评论id
+     */
+    @DeleteMapping("/{id}")
+    public Result deleteComment(@PathVariable("id") Long id) {
+        return commentService.deleteComment(id);
+    }
+
+    /**
+     * 【评论置顶的实现】置顶/取消置顶一级评论（仅游记作者可操作）
+     * <p>
+     * 实现细节：
+     * - PUT /note-comments/top/{id}，请求体 {top: true|false}（top=true 置顶，false 取消置顶）；
+     *   需登录（LoginInterceptor 拦截），权限校验在 service 内完成（仅游记作者），无权限 fail"无权操作"。
+     * - 同一游记最多置顶 3 条，超限时先取消最旧的置顶（见 service 实现注释）。
+     * @param id   评论id
+     * @param body 请求体 {top: Boolean}，top 缺失时 fail"参数不完整"
+     */
+    @PutMapping("/top/{id}")
+    public Result topComment(@PathVariable("id") Long id,
+                             @RequestBody(required = false) java.util.Map<String, Boolean> body) {
+        Boolean top = body == null ? null : body.get("top");
+        if (top == null) {
+            return Result.fail("参数不完整");
+        }
+        return commentService.topComment(id, top);
+    }
+
 }

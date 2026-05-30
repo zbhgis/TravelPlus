@@ -21,18 +21,21 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
 import static com.travelplus.utils.RedisConstants.LOGIN_USER_KEY;
 
 /**
- * 【用户模块接口的实现】用户模块统一入口：验证码、登录/注册/登出、当前用户、资料详情、签到、浏览记录、用户主页
+ * 【用户模块接口的实现】用户模块统一入口：验证码、登录/注册/登出、当前用户、资料详情、签到、浏览记录、用户主页、
+ * 主页分 tab（评论列表 / 赞过列表）
  * <p>
  * 实现细节：
  * - 路由域：@RequestMapping("/user")，全部用户侧接口挂 /user/** 前缀。
  * - 鉴权：除放行路径（/user/code、/user/login、/user/register、/user/home/**）外，其余端点
- *   （/user/me、/user/sign、/user/info、/user/browse/list 等）均被 LoginInterceptor 拦截，未登录返回 401；
+ *   （/user/me、/user/sign、/user/info、/user/browse/list、/user/comments/{id}、
+ *   /user/liked-notes/{id}、/user/liked-attractions/{id} 等）均被 LoginInterceptor 拦截，未登录返回 401；
  *   当前登录用户统一从 UserHolder 获取（由 RefreshTokenInterceptor 从 Redis 登录态写入）。
  * - 登录态载体：登录/注册成功返回裸 token，前端存请求头 authorization（小写）透传；
  *   服务端以 Redis login:token:{token} 维护，RefreshTokenInterceptor 每次请求校验并滚动续期。
@@ -198,14 +201,17 @@ public class UserController {
     }
 
     /**
-     * 【签到功能的实现】当前登录用户今日签到（Redis BitMap 位图）
+     * 【签到积分的实现】当前登录用户今日签到 = 签到位图置 1 + 积分 +2 + 积分流水
      * <p>
      * 实现细节：
      * - 需登录：/user/sign 在 LoginInterceptor 拦截范围内，未登录返回 401。
      * - 签到位图 key = sign:{userId}:yyyyMM（USER_SIGN_KEY），SETBIT offset=dayOfMonth-1 置 1
      *   （offset0 对应每月 1 号）；每位占 1 bit，全月约 4 字节，空间开销极小且天然支持连续签到统计。
-     * - 重复签到为幂等写入（同一 bit 重复置 1），不报错；连续签到天数统计见 /user/sign/count。
-     * @return 签到成功返回 ok
+     * - 签到即得 +2 积分：SQL 原子自增 tb_user.points=points+2 并写 tb_points_record 流水
+     *   （type='sign'），详见 UserServiceImpl.sign 注释。
+     * - 重复签到拦截：签到前 GETBIT 检查今天是否已签，已签返回 fail"今天已签到，明天再来吧"
+     *   （修复原幂等 SETBIT 的重复签到 bug，前端不再出现"明明签到过还显示可签到"）。
+     * @return 签到成功返回 ok；今天已签返回 fail
      */
     @PostMapping("/sign")
     public Result sign(){
@@ -252,6 +258,81 @@ public class UserController {
     @GetMapping("/sign/list")
     public Result signList(){
         return userService.signList();
+    }
+
+    /**
+     * 【钱包资产的实现】当前登录用户钱包资产：余额 / 积分 / 秒杀券数量
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/wallet 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），未登录返回 401；
+     *   当前用户 id 由服务端从 UserHolder 获取，不信任前端传入。
+     * - 业务全在 UserServiceImpl.queryWallet（见其注释）：查 tb_user 的 balance（元）/points；
+     *   couponCount=COUNT(tb_ticket_order WHERE user_id=我 AND status IN (2,3))（已支付/已核销的秒杀券数）。
+     * @return data=Map{balance(元), points(积分), couponCount(秒杀券数)}
+     */
+    @GetMapping("/wallet")
+    public Result wallet(){
+        return userService.queryWallet();
+    }
+
+    /**
+     * 【积分记录的实现】当前登录用户积分增减记录（分页，钱包页"积分明细"）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/points/records 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），
+     *   未登录返回 401；current 默认第 1 页。
+     * - 业务全在 UserServiceImpl.queryPointsRecords（见其注释）：按 user_id=当前用户 倒序分页查
+     *   tb_points_record，data=List<Map{id, changePoints, type, typeText, description, createTime}>，
+     *   total=流水总数；typeText 映射（sign=签到奖励 order=下单抵扣 refund=退款返还 admin=运营调整）。
+     * @param current 页码，默认第1页
+     * @return data=积分流水列表，total=流水总数
+     */
+    @GetMapping("/points/records")
+    public Result pointsRecords(@RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryPointsRecords(current);
+    }
+
+    /**
+     * 【余额流水的实现】当前登录用户余额增减记录（分页，钱包页"余额明细"）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/balance/records 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），
+     *   未登录返回 401；current 默认第 1 页。
+     * - 业务全在 UserServiceImpl.queryBalanceRecords（见其注释）：按 user_id=当前用户 倒序分页查
+     *   tb_balance_record，data=List<Map{id, changeAmount, type, typeText, payMethod, description,
+     *   createTime}>，total=流水总数；typeText 映射（recharge=充值 pay=消费 refund=退款 admin=调整）。
+     * @param current 页码，默认第1页
+     * @return data=余额流水列表，total=流水总数
+     */
+    @GetMapping("/balance/records")
+    public Result balanceRecords(@RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryBalanceRecords(current);
+    }
+
+    /**
+     * 【充值功能的实现】模拟充值：微信/支付宝二选一，模拟直接成功
+     * <p>
+     * 实现细节：
+     * - 需登录：POST /user/recharge 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），未登录返回 401；
+     *   当前用户 id 由服务端从 UserHolder 获取，不信任前端传入。
+     * - body 接收 {amount: 充值金额(元), payMethod: 'wechat'|'ali'}（Map 解析风格同 /chat/send）。
+     * - 业务全在 UserServiceImpl.recharge（见其注释）：校验 amount>0 且 ≤5000、payMethod 合法后
+     *   模拟直接成功——SQL 原子自增 tb_user.balance=balance+amount 并 INSERT tb_balance_record
+     *   （+amount, type='recharge'），同一事务原子提交，返回 data=Map{balance=充值后余额}。
+     * @param body 请求体 {amount: BigDecimal(元), payMethod: String}
+     * @return 充值成功 ok（data=Map{balance}）；参数非法返回对应 fail
+     */
+    @PostMapping("/recharge")
+    public Result recharge(@RequestBody Map<String, Object> body){
+        BigDecimal amount = null;
+        String payMethod = null;
+        if (body != null) {
+            Object amt = body.get("amount");
+            amount = amt == null ? null : new BigDecimal(String.valueOf(amt));
+            Object pm = body.get("payMethod");
+            payMethod = pm == null ? null : String.valueOf(pm);
+        }
+        return userService.recharge(amount, payMethod);
     }
 
     /**
@@ -303,5 +384,79 @@ public class UserController {
         // 当前登录用户（拦截器已保证非空）
         UserDTO user = UserHolder.getUser();
         return browseRecordService.list(user.getId());
+    }
+
+    /**
+     * 【主页评论列表的实现】某用户的评论列表（分页，主页"评论" tab）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/comments/{id} 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），
+     *   未登录返回 401；id=被查看主页的用户 id，current 默认第 1 页。
+     * - 查 tb_travel_note_comment WHERE user_id=id 按 create_time 倒序分页（每页 MAX_PAGE_SIZE 条），
+     *   逐条 join 游记标题与首图，游记已删除跳过；data=List<Map{id, noteId, noteTitle, noteImage,
+     *   content, createTime}>，total=评论总数，见 UserServiceImpl.queryUserComments 注释。
+     * @param id      被查看评论的用户id
+     * @param current 页码，默认第1页
+     * @return data=List<Map>，total=评论总数
+     */
+    @GetMapping("/comments/{id}")
+    public Result queryUserComments(@PathVariable("id") Long id,
+                                    @RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryUserComments(id, current);
+    }
+
+    /**
+     * 【赞过列表的实现】某用户赞过的游记列表（分页，主页"赞过" tab 游记子页）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/liked-notes/{id} 在 LoginInterceptor 拦截范围内，未登录返回 401。
+     * - 遍历 Redis note:liked:* 找该用户赞过的游记（score=点赞时间戳），按时间倒序分页，
+     *   逐条查游记标题/首图，游记已删除跳过；data=List<Map{id, title, image}>，total=赞过总数，
+     *   见 UserServiceImpl.queryLikedNotes 注释。
+     * @param id      被查看赞过列表的用户id
+     * @param current 页码，默认第1页
+     * @return data=List<Map{id, title, image}>，total=赞过游记总数
+     */
+    @GetMapping("/liked-notes/{id}")
+    public Result queryLikedNotes(@PathVariable("id") Long id,
+                                  @RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryLikedNotes(id, current);
+    }
+
+    /**
+     * 【赞过列表的实现】某用户赞过的景点列表（分页，主页"赞过" tab 景点子页）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/liked-attractions/{id} 在 LoginInterceptor 拦截范围内，未登录返回 401。
+     * - 与 liked-notes 同构：遍历 Redis attraction:liked:* 找该用户赞过的景点（score=点赞时间戳），
+     *   按时间倒序分页，逐条查景点名称/首图，景点已删除跳过；data=List<Map{id, title, image}>，
+     *   total=赞过总数，见 UserServiceImpl.queryLikedAttractions 注释。
+     * @param id      被查看赞过列表的用户id
+     * @param current 页码，默认第1页
+     * @return data=List<Map{id, title, image}>，total=赞过景点总数
+     */
+    @GetMapping("/liked-attractions/{id}")
+    public Result queryLikedAttractions(@PathVariable("id") Long id,
+                                        @RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryLikedAttractions(id, current);
+    }
+
+    /**
+     * 【打卡与足迹的实现】某用户的打卡景点列表（分页，足迹展示——**足迹公开**，他人主页也可查看）
+     * <p>
+     * 实现细节：
+     * - 需登录：GET /user/checkins/{id} 在 LoginInterceptor 拦截范围内（/user/** 除放行路径），
+     *   未登录返回 401；id=被查看足迹的用户 id，current 默认第 1 页。
+     * - 查 tb_attraction_checkin WHERE user_id=id 按 create_time 倒序分页（每页 MAX_PAGE_SIZE 条），
+     *   逐条 join 景点取名称/首图/坐标，景点已删除跳过；data=List<Map{id, name, image, x, y,
+     *   checkinTime}>，total=打卡总数，见 UserServiceImpl.queryUserCheckins 注释。
+     * @param id      被查看足迹的用户id（他人可看：足迹公开）
+     * @param current 页码，默认第1页
+     * @return data=List<Map{id, name, image, x, y, checkinTime}>，total=打卡总数
+     */
+    @GetMapping("/checkins/{id}")
+    public Result queryUserCheckins(@PathVariable("id") Long id,
+                                    @RequestParam(value = "current", defaultValue = "1") Integer current){
+        return userService.queryUserCheckins(id, current);
     }
 }

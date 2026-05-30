@@ -8,21 +8,28 @@ import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.travelplus.dto.Result;
 import com.travelplus.dto.UserDTO;
 import com.travelplus.entity.Follow;
+import com.travelplus.entity.TravelNote;
 import com.travelplus.entity.UserInfo;
 import com.travelplus.mapper.FollowMapper;
+import com.travelplus.mapper.TravelNoteMapper;
 import com.travelplus.service.IFollowService;
 import com.travelplus.service.IUserInfoService;
+import com.travelplus.service.INotifyService;
 import com.travelplus.service.IUserService;
 import com.travelplus.utils.SystemConstants;
 import com.travelplus.utils.UserHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static com.travelplus.utils.RedisConstants.FEED_KEY;
 
 /**
  * 【关注功能的实现】关注服务实现：关注/取关、是否关注、共同关注、关注/粉丝列表（含隐私校验）
@@ -38,15 +45,21 @@ import java.util.stream.Collectors;
  * @author TravelPlus
  * @since 2021-12-22
  */
+@Slf4j
 @Service
 public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> implements IFollowService {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private INotifyService notifyService;
     @Resource
     private IUserService userService;
     @Resource
     private IUserInfoService userInfoService;
+    @Resource
+    private TravelNoteMapper travelNoteMapper;
 
     /**
      * 【关注功能的实现】关注/取关用户，DB 与 Redis 关注集合同步维护，幂等
@@ -81,6 +94,12 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             }
             // 3.2.无论新增还是已存在，都保证 Redis 关注集合成员存在（SADD 幂等）
             stringRedisTemplate.opsForSet().add(key, followUserId.toString());
+            // 3.3.【关注Feed同步的实现】关注成功后把被关注者历史游记补齐到当前用户 Feed 收件箱
+            //     （根因：Feed 只在"发布游记时"推送给当时粉丝，关注前已发布的历史游记不会补推，
+            //      导致关注后"关注频道"看不到 TA 的历史帖子；见 backfillFollowFeed 注释）
+            backfillFollowFeed(followUserId, userId);
+            // 3.4.【通知系统的实现】关注动作旁路通知被关注者（仅关注发，取关不发；失败静默）
+            notifyFollow(followUserId, userId);
         } else {
             // 4.取关，删除 delete from tb_follow where user_id = ? and follow_user_id = ?
             boolean isSuccess = remove(new QueryWrapper<Follow>()
@@ -91,6 +110,79 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             }
         }
         return Result.ok();
+    }
+
+    /**
+     * 【关注Feed同步的实现】关注成功时补齐被关注者历史游记到当前用户 Feed 收件箱
+     * <p>
+     * 实现细节：
+     * - 为什么要补：Feed 推送机制只覆盖"发布游记的那一刻"——saveTravelNote 仅把 noteId 推给
+     *   当时的粉丝（feed:{粉丝id}）。若用户在 TA 发布之后才关注，则关注前的历史游记永远不会
+     *   出现在自己的 Feed 收件箱里，导致"关注频道"看不到 TA 的帖子。因此关注动作必须主动
+     *   把被关注者的全部历史游记一次性补进当前用户的 Feed。
+     * - score 语义：ZADD 的 score 用游记 createTime 的 epoch 毫秒（非当前时间戳），保证补入的
+     *   历史帖子仍按"真实发布时间"落入 Feed 时间轴——旧帖排后面、新帖排前面，与滚动分页
+     *   （ZREVRANGEBYSCORE 时间倒序）语义一致；若用关注时刻作 score，会把历史帖顶到时间轴最前，
+     *   排序失真。
+     * - 幂等：ZADD 对已存在的 member（noteId）直接更新 score 且不产生重复成员，重复关注/重复调用
+     *   不会把帖子复制成多条；Feed 滚动分页按 member=noteId 去重读取，天然安全。
+     * - 性能：仅 select id, create_time 两列（不拉全文），一次性 ZADD 全部历史帖子；
+     *   demo 规模单用户游记数有限，此处不做分批。
+     * - 一致性：DB（tb_follow 落库）+ Redis Set（follows:）与 Feed 补齐放在同一关注分支内，
+     *   任一失败仅 log.warn，不影响关注结果（关注主流程已成功，Feed 补齐是增强行为）。
+     *
+     * @param followUserId 被关注者用户id（其历史游记要补进当前用户 Feed）
+     * @param followerId   当前登录用户id（Feed 收件箱归属者）
+     */
+    private void backfillFollowFeed(Long followUserId, Long followerId) {
+        try {
+            // 1.查被关注者全部游记，只取 id + create_time（score 排序依据），避免整行全量拉取
+            List<TravelNote> notes = travelNoteMapper.selectList(
+                    new QueryWrapper<TravelNote>()
+                            .select("id", "create_time")
+                            .eq("user_id", followUserId));
+            if (notes == null || notes.isEmpty()) {
+                // 被关注者还没发过游记，无需补齐
+                return;
+            }
+            // 2.逐个把 noteId 写入当前用户 Feed（ZADD 幂等：已存在的 member 只更新 score 不重复）
+            String feedKey = FEED_KEY + followerId;
+            for (TravelNote note : notes) {
+                // createTime 是连接 UTC 会话下读取的 LocalDateTime，按 UTC 转 epoch 毫秒作 score
+                long score = note.getCreateTime().atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+                stringRedisTemplate.opsForZSet().add(feedKey, note.getId().toString(), score);
+            }
+            log.debug("【关注Feed同步的实现】关注用户 {} 时，向 {} 的 Feed 补齐 {} 条历史游记",
+                    followUserId, followerId, notes.size());
+        } catch (Exception e) {
+            // Feed 补齐失败不影响关注结果（主流程已成功），仅记录日志便于排查
+            log.warn("【关注Feed同步的实现】关注补齐历史游记失败，不影响关注结果：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 【通知系统的实现】关注动作旁路通知被关注者（type=follow）
+     * <p>
+     * 实现细节：
+     * - 触发时机：仅关注动作（isFollow=true）调用，取关不发通知。
+     * - 文案：纯动作"关注了你"（【通知实时昵称的实现】content 不含昵称前缀，小红书方案）——
+     *   昵称由展示层 queryNotifyList 用实时 fromUser.nickName 拼装 displayText，改昵称自动生效。
+     * - targetId：被关注者用户id（前端点击消息可跳转到对方主页）。
+     * - 静默策略：整体 try-catch，失败仅 log.warn 不影响关注结果；自己关注自己由
+     *   NotifyServiceImpl.add 内部自触发过滤兜底。
+     *
+     * @param followUserId 被关注者用户id（通知接收者）
+     * @param followerId   关注动作触发者用户id
+     */
+    private void notifyFollow(Long followUserId, Long followerId) {
+        try {
+            // 【通知实时昵称的实现】content 只存纯动作文案"关注了你"，不含昵称前缀：
+            // 昵称不落库，由展示层（queryNotifyList）用实时 fromUser.nickName 拼装 displayText，
+            // 用户改昵称后历史通知自动显示新昵称（小红书方案：content 纯动作 + 展示实时拼装）。
+            notifyService.add(followUserId, followerId, "follow", followUserId, "关注了你");
+        } catch (Exception e) {
+            log.warn("【通知系统的实现】关注通知失败，不影响关注结果：{}", e.getMessage());
+        }
     }
 
     /**

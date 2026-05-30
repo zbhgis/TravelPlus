@@ -14,4 +14,7 @@ public class SystemConstants {
     public static final int DEFAULT_PAGE_SIZE = 5;
     /** 列表分页允许的最大每页条数 */
     public static final int MAX_PAGE_SIZE = 10;
+    /** 【订单超时的实现】秒杀订单支付超时时间（分钟）：用户秒杀下单成功后须在 15 分钟内付款，
+     * 超时未支付由 OrderTimeoutTask 定时任务自动取消（订单 status 1→4）+ 回补库存（DB+Redis）+ 释放秒杀资格 */
+    public static final int PAY_TIMEOUT_MINUTES = 15;
 }

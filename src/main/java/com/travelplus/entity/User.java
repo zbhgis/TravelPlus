@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -60,6 +61,16 @@ public class User implements Serializable {
      * 【用户主页编辑的实现】用户背景图路径（个人主页编辑上传，默认空串=无背景图）
      */
     private String bgImage = "";
+
+    /**
+     * 【签到积分与钱包的实现】积分余额（每天签到 +2，SQL 原子自增，见 UserServiceImpl.sign 注释）
+     */
+    private Integer points = 0;
+
+    /**
+     * 【签到积分与钱包的实现】钱包余额（元），demo 预置/运营调整，配合秒杀券支付预留
+     */
+    private BigDecimal balance = BigDecimal.ZERO;
 
     /**
      * 创建时间

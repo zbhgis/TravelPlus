@@ -142,6 +142,9 @@ public class TravelNoteController {
      * - 匿名可访问：GET /note/of/user 不在登录拦截器 exclude 列表但 RefreshTokenInterceptor 放行
      *   无 token 请求，游客也可查看他人游记；id 为目标用户 id（必填），current 默认第 1 页，
      *   每页 SystemConstants.MAX_PAGE_SIZE 条。
+     * - 可见性（【笔记可见性的实现】）：仅返回该用户公开笔记（visible=0）或当前登录用户自己的
+     *   笔记，条件 (visible = 0 OR user_id = 当前登录用户)——查看本人主页（id=自己）时全部可见，
+     *   游客/他人查看时该用户仅自己可见的笔记（visible=1）不出现。
      * - 按 user_id 等值分页查询，data=当前页游记列表（不含作者冗余字段，与 /of/me 一致）。
      * @param current 页码，默认第1页
      * @param id      目标用户id
@@ -151,31 +154,59 @@ public class TravelNoteController {
     public Result queryTravelNoteByUserId(
             @RequestParam(value = "current", defaultValue = "1") Integer current,
             @RequestParam("id") Long id) {
+        // 【笔记可见性的实现】过滤条件：可见公开 或 本人（游客 currentUserId=null 仅公开）
+        UserDTO currentUser = UserHolder.getUser();
+        Long currentUserId = currentUser == null ? null : currentUser.getId();
         // 根据用户查询
         Page<TravelNote> page = noteService.query()
-                .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+                .eq("user_id", id)
+                .and(w -> {
+                    w.eq("visible", 0);
+                    if (currentUserId != null) {
+                        w.or().eq("user_id", currentUserId);
+                    }
+                })
+                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
         List<TravelNote> records = page.getRecords();
         return Result.ok(records);
     }
 
     /**
-     * 【关注流游记的实现】滚动分页查询关注的人的游记（Redis Feed 收件箱）
+     * 【关注Feed的实现】分页查询我关注的所有人的可见游记（实时查询，按发布时间倒序）
      * <p>
      * 实现细节：
      * - 需登录：GET /note/of/follow 被 LoginInterceptor 拦截，未登录返回 401。
-     * - 读当前用户收件箱 feed:{userId}：ZREVRANGEBYSCORE 按分数（发布时间戳）从 lastId 往前取 2 条，
-     *   offset 用于处理同分（同一时间发布的游记）翻页去重，返回 ScrollResult{list, minTime, offset}，
-     *   前端下次请求带上 minTime/offset 即可继续往下翻，详见 service 实现注释。
-     * - 每条记录补充作者信息与当前用户点赞态 isLike。
-     * @param lastId 上次返回的 minTime（滚动游标，首次传时间戳上限）
-     * @param offset 同分偏移（去重用，默认 0）
-     * @return data=ScrollResult{list, offset, minTime}
+     * - 实时 join：服务端按"当前用户关注列表（tb_follow user_id=me）→ 这些用户发布的可见游记
+     *   （visible=0）"实时查询，不再依赖 Redis Feed 收件箱推送——数据与我关注的人数实时一致
+     *   （新发布/取关/隐藏即时反映），修复推送制下历史关注者游记缺失/不全的问题。
+     *   前端已同步改为 current 分页调用。
+     * - 分页：current 页码，每页 SystemConstants.MAX_PAGE_SIZE（10）条；
+     *   data=List&lt;TravelNote&gt;（含 name/icon/isLike），total=符合条件的总数。
+     * @param current 页码（从1开始）
+     * @return data=当前页关注游记列表（含 name/icon/isLike），total=总数
      */
     @GetMapping("/of/follow")
     public Result queryTravelNoteOfFollow(
-            @RequestParam("lastId") Long max, @RequestParam(value = "offset", defaultValue = "0") Integer offset){
-        return noteService.queryTravelNoteOfFollow(max, offset);
+            @RequestParam("current") Integer current) {
+        return noteService.queryTravelNoteOfFollow(current);
+    }
+
+    /**
+     * 【笔记编辑的实现】编辑已发布笔记（仅作者本人，非空字段更新）
+     * <p>
+     * 实现细节：
+     * - 需登录：PUT /note/{id} 在 LoginInterceptor 拦截范围内（/note/** 除 /note/hot 外均需登录），
+     *   未登录返回 401；作者校验在 service 内用 UserHolder 完成，非作者 fail"无权编辑该游记"。
+     * - body 接收 TravelNote 部分字段（title/content/images/attractionId/visible 均可选，null=不修改），
+     *   详见 TravelNoteServiceImpl.updateNote 注释。
+     * @param id   待编辑的游记id
+     * @param note 编辑入参（JSON body，部分字段可选）
+     * @return 编辑成功返回 ok
+     */
+    @PutMapping("/{id}")
+    public Result updateNote(@PathVariable("id") Long id, @RequestBody TravelNote note) {
+        return noteService.updateNote(id, note);
     }
 
     /**

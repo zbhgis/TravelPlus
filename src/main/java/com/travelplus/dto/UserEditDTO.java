@@ -64,4 +64,30 @@ public class UserEditDTO {
      * 【隐私设置的实现】粉丝列表是否公开：1=可见，0=不可见
      */
     private Integer fansVisible;
+
+    /**
+     * 【隐私设置的实现】"赞过"列表是否公开：1=可见，0=不可见（他人无法查看我的赞过列表）
+     */
+    private Integer likesVisible;
+
+    /**
+     * 【隐私设置的实现】"收藏"列表是否公开：1=可见，0=不可见（他人无法查看我的收藏列表）
+     */
+    private Integer favoritesVisible;
+
+    /**
+     * 【隐私设置的实现】"评论"列表是否公开：1=可见，0=不可见（他人无法查看我的评论列表）
+     */
+    private Integer commentsVisible;
+
+    /**
+     * 【隐私设置的实现】"足迹/打卡"列表是否公开：1=可见，0=不可见（他人无法查看我的足迹列表）
+     */
+    private Integer footprintsVisible;
+
+    /**
+     * 【私信限制的实现】私信模式：0=开放（默认），1=仅互关好友可发，2=关闭（任何人不可发）。
+     * 仅 0/1/2 合法，越界 fail 不入库。
+     */
+    private Integer dmMode;
 }
