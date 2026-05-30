@@ -27,6 +27,7 @@ nb/.gradle/
 .omo/
 .playwright-mcp/
 .codegraph/
+.cursor/
 logs/
 *.log
 uploads/
