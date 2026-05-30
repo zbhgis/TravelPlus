@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.travelplus</groupId>
-    <artifactId>travelplus</artifactId>
+    <artifactId>travelplus-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>TravelPlus</name>
     <description>TravelPlus 旅游服务平台后端</description>

@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @MapperScan("com.travelplus.mapper")
 @EnableRetry
-@EnableKafka // 【kafka消息队列的实现】开启 Kafka 监听支持，否则 @KafkaListener 注解不会生效（秒杀订单消费链路依赖）
+@EnableKafka // 【kafka消息队列的实现】开启 Kafka 监听支持，否则 @KafkaListener 注解不会生效
 // 【客服异步多线程的实现】开启 Spring 异步支持：配合 config/AsyncConfig 的 supportTaskExecutor
 // 线程池使用——客服 AI 调用（chatModel.chat 等待 DeepSeek 响应 1-3s）改为后台异步执行，
 // 请求线程立即返回"思考中"，AI 回复由线程池线程生成并落库，避免阻塞 Tomcat 请求线程。
