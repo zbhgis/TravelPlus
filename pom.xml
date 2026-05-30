@@ -25,6 +25,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!-- 【Elasticsearch搜索的实现】Spring Data Elasticsearch starter：版本由 spring-boot-starter-parent(3.5.9)
+             托管（spring-boot-dependencies 中 elasticsearch-client.version=8.18.8），与本地 docker travelplus-es
+             (8.17.4，无认证) 同属 8.x 大版本，client 8.18 可正常连接 server 8.17；
+             提供 ElasticsearchOperations / IndexOperations / @Document 注解式索引映射能力。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
@@ -92,6 +100,15 @@
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
+        </dependency>
+        <!-- 【AI客服的实现】langchain4j OpenAI 兼容接入：DeepSeek 提供 OpenAI 兼容 API，直接用 langchain4j-open-ai 驱动。
+             坐标注意：官方 groupId 为 dev.langchain4j（非 org.langchain4j，该 group 在 Maven 中央仓库不存在，
+             已用 mvn dependency:get 实测 aliyun 镜像解析 1.18.1 成功）；本依赖 compile 级传递引入 langchain4j-core，
+             无需单独声明 core。1.18.1 为 2026-07 的当前最新稳定版。 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>1.18.1</version>
         </dependency>
     </dependencies>
 

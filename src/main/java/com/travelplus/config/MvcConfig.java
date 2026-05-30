@@ -52,16 +52,23 @@ public class MvcConfig implements WebMvcConfigurer {
         // 登录拦截器
         registry.addInterceptor(new LoginInterceptor())
                 .excludePathPatterns(
-                        "/attraction/**",
+                        // 【景点点赞的实现】/attraction/** 由整段放行细化为三条匿名路径：
+                        // /attraction（POST/PUT 新增/更新）、/attraction/*（GET 详情）、/attraction/of/**（类型/名称分页）——
+                        // 使 PUT /attraction/like/{id} 落在拦截范围内（点赞需登录，未登录 401），其余景点查询保持匿名
+                        "/attraction",
+                        "/attraction/*",
+                        "/attraction/of/**",
                         "/ticket/**",
                         "/attraction-type/**",
                         "/upload/**",
                         "/imgs/**",
                         "/note/hot",
+                        "/map/points", // 【地图数据的实现】地图点位公开（无需登录，地图先于登录页加载）
                         "/user/code",
                         "/user/login",
                         "/user/register", // 注册接口匿名可访问（密码/验证码登录接口本就在放行列表）
                         "/user/home/**", // 用户主页公开（未登录可浏览，service 内对 UserHolder 判空，followed 恒为 false）
+                        "/search/**", // 【全局搜索的实现】全局搜索公开（搜索结果页/热门词条/输入联想均无需登录）
                         "/error"
                 ).order(1);
         // token刷新的拦截器

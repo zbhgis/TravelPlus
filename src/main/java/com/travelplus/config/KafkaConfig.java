@@ -40,6 +40,11 @@ import java.util.Map;
  *    （kafkaTemplate.send(topic, JSONUtil.toJsonStr(order))），不是对象字节序列化，
  *    因此这里仅把 Kafka 原始消息还原成 String，再由 SeckillTicketConsumer 用
  *    JSONUtil.toBean 解析为 TicketOrder，避免 LocalDateTime 等类型的序列化推断问题。
+ * 5. 并发吞吐（【Kafka多分区消费的实现】）：topic seckill-ticket-order 已扩容为 4 分区，
+ *    本工厂 setConcurrency(4) 起 4 个消费者线程（每线程绑定一个分区）并行消费。
+ *    背景：曾因"单分区 + 单消费者（默认 concurrency=1）"串行处理，消费端实测吞吐仅
+ *    ~0.5 条/s（Kafka 本身纯读写能力约 27 万条/s），瓶颈在消费并行度而非 Kafka 能力；
+ *    多分区 + 多消费者后消费并行度 ×4，吞吐理论可提升至 ~4 倍。
  */
 @Slf4j
 @Configuration
@@ -63,10 +68,17 @@ public class KafkaConfig {
      *   containerFactory 属性指定本工厂（见 SeckillTicketConsumer）。
      * - AckMode 必须为 MANUAL_IMMEDIATE：秒杀消费逻辑里只有 createTicketOrder 落库成功后
      *   才手动 ack.acknowledge()，保证"落库成功才提交位移"，失败时不提交、交给 errorHandler 重试。
+     * - 【Kafka多分区消费的实现】setConcurrency(4)：消费并发=分区数=4，四个消费者线程各自
+     *   消费不同分区并行处理；同一用户订单跨分区被并发消费时，由 createTicketOrder 内的
+     *   Redisson 锁 lock:order:{userId} 兜底（同用户串行、不同用户并行），无需额外防重逻辑。
      */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> seckillTicketOrderKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        // 【Kafka多分区消费的实现】消费并发=分区数=4：四个消费者线程各自消费不同分区并行处理，
+        // 提升消费吞吐（原单分区单消费者实测 ~0.5 条/s，现并行度 ×4）；
+        // 同一用户订单跨分区并发由 Redisson 锁 lock:order:{userId} 兜底，无需额外防重。
+        factory.setConcurrency(4);
         // 设置消费异常处理策略：重试3次(间隔1000ms)，耗尽后告警
         factory.setCommonErrorHandler(errorHandler());
         // Ack模式：MANUAL_IMMEDIATE，配合 SeckillTicketConsumer 手动 ack.acknowledge() 使用

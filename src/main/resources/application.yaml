@@ -7,17 +7,40 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3307/travelplus?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
     username: root
-    password: 123456
+    password: 123456 # demo 密码（开源项目既定演示库凭据，生产环境请通过环境变量注入替换）
   data:
+    # 【Redis集群的实现】Redis 主从 + 3 哨兵 高可用模式（哨兵集群 master=mymaster，故障自动切换）
+    # - 哨兵地址 127.0.0.1:26379/26380/26381（docker-compose 见 docker/redis-sentinel/）：
+    #   Spring Data Redis 连接哨兵查询当前 master，主节点宕机后哨兵自动提升从节点为新的 master，
+    #   应用无需改配置即可自动重连新主（Lettuce 每 ~100ms 轮询一次哨兵）。
+    # - 密码说明：spring.data.redis.password=123456 用于认证哨兵返回的 master/slave 节点
+    #   （docker-compose 中 requirepass 统一 123456）；哨兵本身无密码，故【不】配置
+    #   spring.data.redis.sentinel.password，避免向哨兵误发 AUTH 被拒。
+    # - 读写路由：spring-data-redis 的脚本(seckill.lua)/事务/写操作默认强制走主节点，
+    #   秒杀库存扣减与 Redisson 锁不会被主从异步复制延迟影响（读从会读到旧库存导致超卖）。
     redis:
-      host: localhost
-      port: 6379
+      password: 123456
+      sentinel:
+        master: mymaster
+        nodes: 127.0.0.1:26379,127.0.0.1:26380,127.0.0.1:26381
       lettuce:
+        # 【Redis集群failover加固的实现】shutdown-timeout：Lettuce 优雅关闭时等待在途请求的最大时长。
+        # 故障转移瞬间哨兵通告抖动导致连接重建时，若应用恰好被关闭/重启，200ms 后即强制释放连接池，
+        # 避免在 failover 风暴期间长时间阻塞关闭流程拖慢/拖死 JVM（配合哨兵 IP 通告修复兜底）。
+        shutdown-timeout: 200ms
         pool:
           max-active: 10
           max-idle: 10
           min-idle: 1
           time-between-eviction-runs: 10s
+  # 【Elasticsearch搜索的实现】ES 连接配置：本地 docker 容器 travelplus-es（8.17.4，http://localhost:9400，无认证）。
+  # uris 写错/ES 挂掉时 spring-data 客户端只在真正发起请求时抛异常（懒连接），/search 会在 SearchServiceImpl
+  # catch 后降级回 LIKE 查询，保证系统可用；连接/读取超时设短，让"ES 不可用"尽快暴露并快速降级。
+  elasticsearch:
+    uris: http://localhost:9400
+    # 无认证：username/password 留空即可（ES 以 xpack.security.enabled=false 启动）
+    connection-timeout: 2s
+    socket-timeout: 5s
   jackson:
     default-property-inclusion: non_null # JSON处理时忽略非空字段
   kafka:
@@ -46,7 +69,18 @@ logging:
 travelplus:
   cache:
     ticket-list:
-      mode: mysql
+      mode: caffeine
       refresh-after-write: 5s
       expire-after-write: 10m
       redis-ttl: 30m
+  # 【AI客服的实现】DeepSeek 大模型接入配置（绑定 AiProperties，前缀 travelplus.ai）
+  # api-key 开源脱敏：运行时由环境变量 DEEPSEEK_API_KEY 提供，空默认值保证未配置时应用仍可正常启动
+  # （仅 AI 客服功能需配置后可用）；base-url 走 OpenAI 兼容端点（DeepSeek 同时兼容 /chat/completions），model 非敏感，保留明文。
+  ai:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: https://api.deepseek.com
+    model: deepseek-v4-flash
+  # 【Elasticsearch搜索的实现】ES 功能开关：false 时 /search 直接走 LIKE 降级实现（不创建索引、不查询 ES），
+  # 便于在 ES 故障/未部署的环境一键切回旧逻辑。
+  es:
+    enabled: true
