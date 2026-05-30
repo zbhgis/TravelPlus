@@ -86,7 +86,7 @@ function renderFollowUsers(container, list, emptyMsg) {
 
   container.innerHTML = list.map(u => `
     <div class="follows-item" data-uid="${u.id}">
-      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)"/>
+      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${u.nickName || '用户'}"/>
       <div class="follows-item-info">
         <span class="follows-item-name">${u.nickName || '用户'}</span>
       </div>
@@ -111,7 +111,7 @@ function appendFollowUsers(container, list, sentinel) {
     el.className = 'follows-item';
     el.dataset.uid = u.id;
     el.innerHTML = `
-      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)"/>
+      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${u.nickName || '用户'}"/>
       <div class="follows-item-info">
         <span class="follows-item-name">${u.nickName || '用户'}</span>
       </div>

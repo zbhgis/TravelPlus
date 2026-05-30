@@ -58,9 +58,10 @@ function matchRoute(hash) {
 
 /**
  * 【updateTabbar】根据当前 hash 决定 tabbar 显隐与高亮
- * - 实现：3 个 tab（首页/发布/我的），hiddenPages 列表中的页面隐藏 tabbar
+ * - 实现：5 个 tab（首页/旅行/发布/消息/我的），hiddenPages 列表中的页面隐藏 tabbar
  * - hiddenPages 匹配：精确匹配 pageName 或 pageName 开头（如 /attraction 匹配 /attraction/:id）
  * - 高亮：当前 hash 与 tab.hash 精确匹配 → active 类
+ * - 消息 tab：动态显示红点角标（.tabbar-badge），由 setMessagesBadge 控制
  */
 function updateTabbar(hash) {
   const tabbar = document.getElementById('tabbar');
@@ -68,13 +69,45 @@ function updateTabbar(hash) {
 
   const pageName = hash.split('?')[0];
 
+  /** 【全局搜索的实现】仅首页（/home）显示全局搜索条，其他 tab 页隐藏
+   * 实现细节：
+   * - 获取 #global-search 元素和 #app 容器
+   * - 仅 pageName === '/home' 时显示搜索条 + #app 加 has-global-search 类（padding-top 留空）
+   * - 其他页（/travel、/messages、/profile 等 tab 页及所有非 tab 页）→ 隐藏搜索条 + 移除 has-global-search 类
+   * - 搜索条点击 → navigate('#/search') 跳转全局搜索页
+   */
+  const globalSearch = document.getElementById('global-search');
+  const appContainer = document.getElementById('app');
+
+  if (globalSearch && appContainer) {
+    const isHomeOnly = pageName === '/home';
+    if (isHomeOnly) {
+      globalSearch.classList.remove('hidden');
+      appContainer.classList.add('has-global-search');
+      // 绑定点击跳转搜索页（只绑定一次）
+      if (!globalSearch.dataset.bound) {
+        globalSearch.dataset.bound = '1';
+        globalSearch.addEventListener('click', () => {
+          navigate('/search');
+        });
+      }
+    } else {
+      globalSearch.classList.add('hidden');
+      appContainer.classList.remove('has-global-search');
+    }
+  }
+
+  /** 【旅行功能的实现】tabbar 5 个——发布放正中间（index 2），顺序：首页/旅行/发布/消息/我的 */
   const tabs = [
     { name: 'home', label: '首页', icon: 'home', hash: '/home' },
+    { name: 'travel', label: '旅行', icon: 'travel', hash: '/travel' },
     { name: 'edit', label: '发布', icon: 'edit', hash: '/edit' },
+    { name: 'messages', label: '消息', icon: 'messages', hash: '/messages' },
     { name: 'profile', label: '我的', icon: 'profile', hash: '/profile' }
   ];
 
-  const hiddenPages = ['/login', '/register', '/attraction', '/note', '/notes', '/follow', '/user'];
+  /** 【旅行功能的实现】hiddenPages 加 /trip 前缀——/trip/new、/trip/:id 等隐藏 tabbar，/travel 是 tab 页不隐藏 */
+  const hiddenPages = ['/login', '/register', '/attraction', '/note', '/notes', '/follow', '/user', '/support', '/privacy', '/favorites', '/chat', '/chats', '/trip', '/search', '/orders', '/order', '/wallet', '/points', '/balance', '/coupons'];
   const shouldHide = hiddenPages.some(p => pageName === p || pageName.startsWith(p + '/'));
 
   if (shouldHide) {
@@ -84,9 +117,15 @@ function updateTabbar(hash) {
 
   tabbar.style.display = 'flex';
   tabbar.innerHTML = tabs.map(t => {
-    const active = pageName === t.hash ? ' active' : '';
-    return '<div class="tabbar-item' + active + '" data-hash="' + t.hash + '">' +
-      getIcon(t.icon, active) +
+    // 消息 tab 高亮：匹配 /messages 精确路径或 /messages/:category 子路由
+    let active = pageName === t.hash;
+    if (t.name === 'messages' && pageName.startsWith('/messages/')) {
+      active = true;
+    }
+    const activeClass = active ? ' active' : '';
+    const badgeHtml = t.name === 'messages' ? '<span class="tabbar-badge" style="display:none"></span>' : '';
+    return '<div class="tabbar-item' + activeClass + '" data-hash="' + t.hash + '">' +
+      '<span class="tabbar-icon-wrap">' + getIcon(t.icon, active) + badgeHtml + '</span>' +
       '<span>' + t.label + '</span></div>';
   }).join('');
 
@@ -95,6 +134,57 @@ function updateTabbar(hash) {
       navigate(item.dataset.hash);
     });
   });
+
+  // 刷新消息红点：非消息页时检查未读消息数（消息页本体和分类子页都不刷新红点）
+  if (!pageName.startsWith('/messages')) {
+    refreshBadge();
+  }
+}
+
+/**
+ * 【消息中心的实现】从后端拉取未读消息数并刷新红点
+ * - 实现：GET /notify/unread-count → 返回值 > 0 则显示红点
+ * - 失败静默：网络异常时不显示红点（不阻塞页面渲染）
+ */
+async function refreshBadge() {
+  try {
+    const token = localStorage.getItem('travelplus_token') || '';
+    const res = await fetch('http://localhost:8081/notify/unread-count', {
+      headers: token ? { authorization: token } : {}
+    });
+    const body = await res.json();
+    if (body && body.success) {
+      const count = body.data;
+      setMessagesBadge(count > 0);
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
+/**
+ * 【消息中心的实现】设置消息 tabbar 红点角标
+ * - 实现：查找 .tabbar-item[data-hash="/messages"] 下的 .tabbar-badge span
+ * - show=true → 显示红点；show=false → 隐藏红点
+ */
+export function setMessagesBadge(show) {
+  const item = document.querySelector('.tabbar-item[data-hash="/messages"]');
+  if (!item) return;
+  const badge = item.querySelector('.tabbar-badge');
+  if (badge) {
+    badge.style.display = show ? 'block' : 'none';
+  }
+}
+
+/**
+ * 【消息中心的实现】公共红点刷新——供 chat/support 等页面发送消息后调用
+ * 实现细节：
+ * - 委托内部 refreshBadge() 异步 GET /notify/unread-count 获取未读数
+ * - 非阻塞：异步调用，不影响发送流程
+ * - 调用方自行控制频率（不在此处防抖）
+ */
+export function refreshMessagesBadge() {
+  refreshBadge();
 }
 
 /**
@@ -108,6 +198,9 @@ function getIcon(name, active) {
     notes: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
     edit: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>',
     follow: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    /** 【旅行功能的实现】旅行图标——飞机/地图针风格 SVG，active 时主题色，非 active 时灰色 */
+    travel: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    messages: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     profile: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
   };
   return icons[name] || '';

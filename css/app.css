@@ -25,8 +25,29 @@
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-family:var(--font);font-size:16px;line-height:1.5;color:var(--text);background:var(--bg);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
-body{min-height:100dvh}
+html{font-family:var(--font);font-size:16px;line-height:1.5;color:var(--text);background:var(--bg);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+body{min-height:100dvh;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.15) transparent}
+/* 【触屏模拟的实现】允许 input/textarea/contenteditable 文本选择 */
+input,textarea,[contenteditable]{user-select:text;-webkit-user-select:text}
+/* 【触屏模拟的实现】滚动条手机化——body 级细滚动条 */
+body::-webkit-scrollbar{width:4px}
+body::-webkit-scrollbar-track{background:transparent}
+body::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:2px}
+/* 【触屏模拟的实现】所有滚动容器统一细滚动条/隐藏 */
+.chat-messages,.side-drawer,.nearby-scroll,.dest-cards-scroll,.dest-tabs-wrap,.attraction-search-dropdown{-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.12) transparent}
+.chat-messages::-webkit-scrollbar,.side-drawer::-webkit-scrollbar,.attraction-search-dropdown::-webkit-scrollbar{width:3px}
+.chat-messages::-webkit-scrollbar-track,.side-drawer::-webkit-scrollbar-track,.attraction-search-dropdown::-webkit-scrollbar-track{background:transparent}
+.chat-messages::-webkit-scrollbar-thumb,.side-drawer::-webkit-scrollbar-thumb,.attraction-search-dropdown::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:2px}
+/* 【触屏模拟的实现】统一按压反馈——所有可点击元素 active 态 */
+.card:active,.attraction-card:active,.note-card:active,.ticket-card:active{transform:scale(0.98);transition:transform .15s}
+.tabbar-item:active{transform:scale(0.92);transition:transform .1s}
+.tabbar-item:active svg{transform:scale(0.9);transition:transform .1s}
+.channel-tab:active,.tab-item:active,.login-tab:active,.fav-tab:active,.user-tab:active,.search-result-tab:active{background:var(--bg);transition:background .15s}
+.dest-tab:active{opacity:.75;transition:opacity .1s}
+.comment-item:active{background:var(--bg);transition:background .15s}
+.btn:active{opacity:.82;transition:opacity .1s}
+.feed-note-card:active{transform:scale(0.985);transition:transform .15s}
+.buddy-card:active{background:var(--bg);transition:background .15s}
 a{color:var(--primary);text-decoration:none}
 img{max-width:100%;display:block}
 button{border:none;background:none;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -35,12 +56,54 @@ input:focus,textarea:focus{border-color:var(--primary)}
 textarea{resize:vertical;min-height:80px}
 
 /* === Layout === */
+/* 【布局的实现】手机容器约束——整体限定 480px 宽并在桌面宽屏下水平居中，底部为 tabbar+安全区留白 */
 .app-container {
   max-width: 480px;
   margin: 0 auto;
   padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 16px);
   min-height: 100dvh;
   background: var(--bg);
+}
+
+/* === Global Search Bar (tab 页置顶) === */
+/* 【全局搜索的实现】固定顶部搜索条——与 app-container 同宽居中，tab 页可见 */
+.global-search-bar {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  z-index: 60;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.global-search-bar.hidden {
+  display: none;
+}
+/* 搜索条内层：圆角灰色底 + 搜索图标 + 占位文字 */
+.global-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 12px;
+  padding: 8px 14px;
+  background: var(--bg);
+  border-radius: 20px;
+  font-size: 14px;
+  color: var(--text-hint);
+}
+.global-search-inner svg {
+  flex-shrink: 0;
+}
+.global-search-inner span {
+  flex: 1;
+}
+/* 全局搜索条可见时，app 容器顶部留出空间（避免内容被搜索条遮挡） */
+.app-container.has-global-search {
+  padding-top: 50px;
 }
 
 /* === Tabbar === */
@@ -367,6 +430,23 @@ textarea{resize:vertical;min-height:80px}
 .attraction-card .card-sold {
   color: var(--text-hint);
 }
+/** 【景点列表的实现】秒杀徽标：红色背景小药丸，紧贴门票价格显示 */
+.attraction-card .seckill-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #fff0f0;
+  color: var(--danger);
+  font-weight: 500;
+  margin-left: 4px;
+  line-height: 1.4;
+}
+/** 【景点列表的实现】免费标签：绿色文字，替代原红色门票价格 */
+.attraction-card .card-free {
+  color: var(--success);
+  font-weight: 500;
+}
 
 /* === Ticket card === */
 .ticket-card {
@@ -565,6 +645,13 @@ textarea{resize:vertical;min-height:80px}
 .comment-item:last-child {
   border-bottom: none;
 }
+/* 置顶评论高亮背景 */
+.comment-item.comment-pinned {
+  background: var(--primary-light);
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
 .comment-body {
   flex: 1;
   min-width: 0;
@@ -574,11 +661,23 @@ textarea{resize:vertical;min-height:80px}
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 .comment-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
+}
+/* 【评论功能的实现】评论头像/昵称可点击 → 用户主页 */
+.comment-avatar-clickable {
+  cursor: pointer;
+}
+.comment-name-clickable {
+  cursor: pointer;
+  transition: color .15s;
+}
+.comment-name-clickable:active {
+  color: var(--primary);
 }
 .comment-time {
   font-size: 11px;
@@ -589,6 +688,74 @@ textarea{resize:vertical;min-height:80px}
   line-height: 1.6;
   color: var(--text);
   word-break: break-word;
+}
+/* 【评论功能的实现】置顶徽标 */
+.comment-pin-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+/* 【评论功能的实现】回复到 xx */
+.comment-reply-to {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+/* 【评论功能的实现】操作按钮行（回复/删除/置顶） */
+.comment-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.comment-action-btn {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+  transition: color .15s;
+}
+.comment-action-btn:active {
+  color: var(--primary);
+}
+.comment-delete-btn {
+  color: var(--danger);
+}
+.comment-delete-btn:active {
+  color: var(--danger);
+}
+/* 【评论功能的实现】回复列表（缩进显示） */
+.comment-reply-list {
+  padding-left: 42px;
+  border-bottom: 1px solid var(--border-light);
+}
+.comment-reply-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.comment-reply-item:last-child {
+  border-bottom: none;
+}
+/* 【评论功能的实现】回复提示条 */
+.comment-reply-hint {
+  padding: 6px 16px;
+  background: var(--primary-light);
+  font-size: 13px;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.comment-reply-cancel {
+  font-size: 16px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  line-height: 1;
 }
 
 /* === Comment placeholder === */
@@ -798,6 +965,11 @@ textarea{resize:vertical;min-height:80px}
 }
 .attraction-detail .detail-score { color: var(--warning); font-weight: 500; }
 .attraction-detail .detail-price { color: var(--danger); font-weight: 500; }
+/** 【景点详情的实现】免费标签：与主页卡片一致的绿色"免费"文字 */
+.attraction-detail .card-free {
+  color: var(--success);
+  font-weight: 500;
+}
 
 /* === Search results === */
 .search-results .result-header {
@@ -924,56 +1096,46 @@ img[src=""], img:not([src]) { opacity: 0; }
   font-weight: 500;
 }
 
-/* === Sign Calendar === */
-.sign-calendar-wrap {
-  margin: 0 16px 12px;
+/* === 【签到功能的实现】紧凑签到点阵（替代完整月历网格） === */
+/* 点阵容器：横向 flex-wrap 排列本月 1 号到今天的圆点 */
+.sign-dots-wrap {
+  margin: 0 16px 8px;
 }
-.sign-calendar {
+.sign-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 14px 12px;
   box-shadow: var(--shadow-sm);
 }
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-hint);
-  margin-bottom: 8px;
+/* 单个签到圆点：8px 小圆，未签=浅灰空心，已签=主题色实心，今天=描边 */
+.sign-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #e0e0e0;
+  background: transparent;
+  flex-shrink: 0;
+  cursor: default;
 }
-.calendar-weekdays span {
-  padding: 4px 0;
-}
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-  text-align: center;
-}
-.calendar-day {
-  padding: 8px 0;
-  font-size: 14px;
-  border-radius: var(--radius-xs);
-  transition: background .2s, color .2s;
-  color: var(--text);
-}
-.calendar-day.empty {
-  /* placeholder — no content */
-}
-.calendar-day.signed {
-  background: var(--primary-light);
-  color: var(--primary);
-  font-weight: 500;
-}
-.calendar-day.today {
-  box-shadow: inset 0 0 0 1.5px var(--primary);
-  font-weight: 600;
-}
-.calendar-day.signed.today {
+/* 已签到：主题色实心 */
+.sign-dot.signed {
   background: var(--primary);
-  color: #fff;
-  box-shadow: none;
+  border-color: var(--primary);
+}
+/* 今天：主题色描边 + 稍大 */
+.sign-dot.today {
+  border-color: var(--primary);
+  border-width: 2px;
+  width: 10px;
+  height: 10px;
+}
+/* 今天且已签到：实心 + 描边保留 */
+.sign-dot.signed.today {
+  background: var(--primary);
+  border-color: var(--primary-dark);
 }
 
 /* === Note Delete Button === */
@@ -1067,15 +1229,185 @@ img[src=""], img:not([src]) { opacity: 0; }
   text-align: center;
   font-size: 18px;
   font-weight: 600;
-  padding: 6px 16px 16px;
+  padding: 6px 16px 4px;
+}
+/* 【个人中心的实现】我的页简介文字 */
+.profile-cover-bio {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-hint);
+  padding: 0 16px 12px;
+  line-height: 1.4;
 }
 
-/* === User Self Actions (编辑资料/浏览记录按钮) === */
+/* === 【个人中心的实现】左侧抽屉侧边栏 + 遮罩 + 菜单按钮 === */
+/* 菜单按钮：page-header 左上角，无背景无边框，触摸反馈 */
+.menu-btn {
+  width: 32px; height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text);
+  border-radius: var(--radius-xs);
+  transition: background 0.15s;
+}
+.menu-btn:active {
+  background: var(--bg);
+}
+/* 遮罩：全屏半透明黑色背景，默认隐藏，点击关闭抽屉 */
+.side-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0);
+  transition: background 0.25s;
+}
+.side-mask.show {
+  background: rgba(0,0,0,0.45);
+}
+/* 抽屉侧边栏：固定左侧，transform translateX 从左侧滑入/滑出 */
+.side-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  max-width: 80vw;
+  z-index: 210;
+  background: var(--surface);
+  box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.side-drawer.show {
+  transform: translateX(0);
+}
+/* 抽屉头部：标题 + 关闭按钮 */
+.side-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.side-drawer-close {
+  width: 32px; height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  border-radius: 50%;
+  transition: background 0.15s;
+}
+.side-drawer-close:active {
+  background: var(--bg);
+}
+/* 抽屉菜单项 */
+.side-drawer-item {
+  padding: 14px 20px;
+  font-size: 15px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.side-drawer-item:active {
+  background: var(--bg);
+}
+.side-drawer-item:last-child {
+  border-bottom: none;
+}
+
+/* === User Self Actions (编辑资料/浏览记录/客服/我的收藏 按钮) — user.js 他人主页仍使用 === */
 .user-self-actions {
   display: flex;
   gap: 10px;
   justify-content: center;
   padding: 12px 0 0;
+  flex-wrap: wrap;
+}
+
+/* === 【用户主页的实现】主页 tab 栏（游记|评论|收藏|赞过）=== */
+/* 4 栏 tab：与 fav-tabs/login-tabs 设计一致（圆角药丸 + 选中态白底阴影） */
+.user-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  margin: 12px 16px 0;
+}
+.user-tab {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  text-align: center;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.user-tab.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* === 【用户主页的实现】tab 内容区包装 === */
+.user-tab-content {
+  background: var(--bg);
+  min-height: 200px;
+}
+
+/* === 【用户主页的实现】评论 tab 列表（评论卡片）=== */
+.user-comment-list {
+  padding: 0;
+}
+.user-comment-item {
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.user-comment-item:active {
+  background: var(--bg);
+}
+/* 评论内容 */
+.user-comment-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+/* 所属游记标题（可点击） */
+.user-comment-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.user-comment-note span {
+  color: var(--primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+/* 评论时间 */
+.user-comment-time {
+  font-size: 11px;
+  color: var(--text-hint);
 }
 
 /* === Edit Profile Form (编辑资料页) === */
@@ -1221,6 +1553,46 @@ img[src=""], img:not([src]) { opacity: 0; }
   transform: translateX(20px);
 }
 
+/* === 【隐私设置的实现】私信模式 segmented 三选控件 === */
+/* 三选按钮组：flex 横向排列，圆角药丸容器 */
+.dm-mode-segmented {
+  display: flex;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  overflow: hidden;
+}
+/* 单个分段按钮：等宽居中，圆角 */
+.dm-mode-seg {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  text-align: center;
+  transition: all .2s;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+/* 选中态：白底 + 主题色 + 阴影 */
+.dm-mode-seg.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.dm-mode-seg:active {
+  opacity: 0.8;
+}
+
+/* === 【游记编辑的实现】详情页编辑按钮样式 === */
+/* 编辑按钮：与操作按钮行其他按钮一致 */
+.note-edit-btn {
+  color: var(--primary) !important;
+  font-size: 14px;
+}
+
 /* === Browse List (浏览记录) === */
 .browse-list {
   padding: 0;
@@ -1298,3 +1670,2782 @@ img[src=""], img:not([src]) { opacity: 0; }
   font-size: 12px;
   color: var(--text-hint);
 }
+
+/* === 【消息中心的实现】消息列表 === */
+.message-list {
+  padding: 0;
+}
+.message-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background .15s;
+}
+.message-item:active {
+  background: var(--bg);
+}
+/* 未读消息高亮：左侧色带 */
+.message-item.unread {
+  border-left: 3px solid var(--primary);
+  padding-left: 13px;
+}
+.message-item .message-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border-radius: 50%;
+}
+.message-item .message-info {
+  flex: 1;
+  min-width: 0;
+}
+.message-item .message-content {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+}
+.message-item .message-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 4px;
+}
+
+/* === 【消息中心的实现】tabbar 红点角标 === */
+.tabbar-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.tabbar-badge {
+  position: absolute;
+  top: -2px;
+  right: -6px;
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+}
+
+/* === 【AI客服聊天页的实现】聊天页整体布局 === */
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--tabbar-height) - var(--safe-bottom));
+  background: var(--bg);
+}
+/* 消息列表区：flex-1 填充剩余空间，可滚动 */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+/* 聊天气泡基础样式 */
+.chat-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+  animation: chatBubbleIn .25s ease-out;
+}
+@keyframes chatBubbleIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* 用户气泡：右对齐，主题色背景 + 白色文字 */
+.chat-bubble-user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+/* 客服气泡：左对齐，白色背景 + 阴影 */
+.chat-bubble-support {
+  align-self: flex-start;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  border-bottom-left-radius: 4px;
+}
+/* "思考中…"loading 气泡 */
+.chat-bubble-loading {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.chat-loading-dots .dot1,
+.chat-loading-dots .dot2,
+.chat-loading-dots .dot3 {
+  animation: chatDotPulse 1.4s infinite both;
+}
+.chat-loading-dots .dot2 { animation-delay: 0.2s; }
+.chat-loading-dots .dot3 { animation-delay: 0.4s; }
+@keyframes chatDotPulse {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+/* 输入栏：固定在底部 */
+.chat-input-bar {
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  align-items: center;
+}
+.chat-input-bar input {
+  flex: 1;
+  background: var(--bg);
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+/* === 【弹窗组件的实现】自定义确认对话框 === */
+/* 半透明遮罩：覆盖全屏，居中容器 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0);
+  transition: background 0.2s;
+}
+.modal-mask.show {
+  background: rgba(0,0,0,0.45);
+}
+/* 圆角卡片：白色底 + 阴影 + 入场动画 */
+.modal-card {
+  width: 290px;
+  max-width: 85vw;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.modal-mask.show .modal-card {
+  opacity: 1;
+  transform: scale(1);
+}
+/* 标题 */
+.modal-title {
+  padding: 20px 20px 0;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+}
+/* 正文 */
+.modal-body {
+  padding: 12px 20px 20px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+/* 按钮行 */
+.modal-footer {
+  display: flex;
+  border-top: 1px solid var(--border-light);
+}
+.modal-btn {
+  flex: 1;
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+  transition: background 0.15s;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.modal-btn:active {
+  background: var(--bg);
+}
+/* 取消按钮 */
+.modal-btn-cancel {
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border-light);
+}
+/* 确认按钮：主题色 */
+.modal-btn-confirm {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* === 【头像交互的实现】放大头像预览弹窗 === */
+/* 复用 modal-mask 动画模式：半透明遮罩 + 居中卡片 + fadeIn/Out */
+.avatar-preview-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0);
+  transition: background 0.2s;
+}
+.avatar-preview-mask.show {
+  background: rgba(0,0,0,0.55);
+}
+/* 预览卡片：白底圆角 + 入场缩放动画 */
+.avatar-preview-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 260px;
+  max-width: 80vw;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 30px 24px 20px;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.25s, transform 0.25s;
+}
+.avatar-preview-mask.show .avatar-preview-card {
+  opacity: 1;
+  transform: scale(1);
+}
+/* 大图：200px 圆角方形 */
+.avatar-preview-img {
+  width: 200px;
+  height: 200px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--bg);
+  margin-bottom: 16px;
+}
+/* 昵称 */
+.avatar-preview-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-align: center;
+}
+/* 自己标签：主题色徽标 */
+.avatar-preview-self-tag {
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  border-radius: 12px;
+  padding: 4px 14px;
+  margin-bottom: 14px;
+}
+/* 关闭按钮 */
+.avatar-preview-close {
+  margin-top: 8px;
+  padding: 10px 40px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.avatar-preview-close:active {
+  background: var(--border);
+}
+
+/* === 【消息中心的实现】三分类圈导航 === */
+/* 分类圈容器：三个圆形卡片平铺 */
+.msg-categories {
+  display: flex;
+  gap: 12px;
+  padding: 16px 16px 8px;
+  justify-content: space-around;
+}
+/* 单个分类圈 */
+.msg-cat-item {
+  position: relative; /* 【分类未读角标的实现】作为 .msg-cat-badge 绝对定位的参照容器 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.msg-cat-item:active {
+  transform: scale(0.95);
+}
+/* 【分类未读角标的实现】三分类圈未读角标：红色圆点/数字，绝对定位在圆形图标右上角
+ * 实现细节：
+ * - .msg-cat-item 为 position:relative 参照；角标 top:-2px + right:-2px 贴在圆形图标右上角（参考 .tabbar-badge 定位）
+ * - 默认 16px 圆点显示 1-9 数字；未读 ≥10 时加 .msg-cat-badge-lg 类加宽为胶囊形（"9+"/"99+"）
+ * - 白字、红色背景（--danger），与 tabbar 消息红点同一色系；未读 0 时不输出该元素（直接隐藏） */
+.msg-cat-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 8px;
+  border: 1.5px solid var(--surface);
+  z-index: 1;
+}
+.msg-cat-badge-lg {
+  min-width: 20px;
+  border-radius: 10px;
+  padding: 0 4px;
+}
+/* 圆形图标区 */
+.msg-cat-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.2s;
+}
+.msg-cat-item.active .msg-cat-circle {
+  box-shadow: 0 0 0 2px var(--primary), var(--shadow-md);
+}
+/* 分类下方文字 */
+.msg-cat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.msg-cat-item.active .msg-cat-label {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+/* === 【收藏功能的实现】收藏列表页 === */
+/* 类型 tab 切换 */
+.fav-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  margin: 0 16px 12px;
+}
+.fav-tab {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  text-align: center;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.fav-tab.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+/* 收藏列表项 */
+.fav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.fav-item:active {
+  background: var(--bg);
+}
+.fav-item-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.fav-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.fav-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fav-item-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 4px;
+}
+
+/* === 【收藏功能的实现】详情页收藏按钮 === */
+.fav-btn .fav-icon-filled {
+  display: none;
+}
+.fav-btn.favorited .fav-icon-filled {
+  display: inline;
+}
+.fav-btn.favorited .fav-icon-outline {
+  display: none;
+}
+.fav-btn.favorited {
+  color: var(--primary);
+}
+
+/* === 【收藏功能的实现】我的页菜单入口 === */
+.profile-menu {
+  background: var(--surface);
+  margin: 0 16px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-menu-item:last-child {
+  border-bottom: none;
+}
+.profile-menu-item:active {
+  background: var(--bg);
+}
+
+/* === 【私信功能的实现】消息页私信入口行 === */
+/* 私信入口行：flex 横向排列，图标+文字+箭头，点击跳转 #/chats */
+.msg-chat-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background .15s;
+}
+.msg-chat-entry:active {
+  background: var(--bg);
+}
+.msg-chat-entry-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.msg-chat-entry-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.msg-chat-entry svg:last-child {
+  flex-shrink: 0;
+}
+
+/* === 【私信功能的实现】聊天页互关提示条 === */
+/* 非互关时显示轻提示：浅青背景 + 小字号，不阻断聊天 */
+.chat-mutual-hint {
+  padding: 8px 16px;
+  background: var(--primary-light);
+  font-size: 12px;
+  color: var(--primary-dark);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* === 【私信功能的实现】聊天气泡内的时间标签 === */
+/* 时间显示在气泡内容下方，小字号灰色 */
+.chat-bubble-time {
+  font-size: 10px;
+  color: rgba(255,255,255,0.7);
+  margin-top: 4px;
+  text-align: right;
+}
+.chat-bubble-support .chat-bubble-time {
+  color: var(--text-hint);
+}
+
+/* === 【私信功能的实现】会话列表 === */
+/* 会话列表项：头像 + 信息区（昵称+时间 top、消息摘要+未读红点 bottom） */
+.chat-session-list {
+  padding: 0;
+}
+.chat-session-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background .15s;
+}
+.chat-session-item:active {
+  background: var(--bg);
+}
+/* 未读会话轻微高亮 */
+.chat-session-item.chat-session-unread {
+  background: #fafffe;
+}
+.chat-session-info {
+  flex: 1;
+  min-width: 0;
+}
+.chat-session-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.chat-session-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.chat-session-time {
+  font-size: 11px;
+  color: var(--text-hint);
+  flex-shrink: 0;
+}
+.chat-session-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chat-session-msg {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+/* 未读红点角标：主题色圆形背景 + 白色数字 */
+.chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 9px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* === 【会话左滑的实现】微信式左滑操作——滑动容器+隐藏操作按钮 === */
+/* 外层容器：overflow:hidden 隐藏右侧操作区，border-bottom 分隔线 */
+.chat-session-swipe {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+/* 内层会话项：touch-action:pan-y 允许垂直滚动、水平拖拽交 JS 处理；transform 平移露出操作区 */
+.chat-session-swipe .chat-session-item {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  transition: transform 0.25s ease;
+  touch-action: pan-y;
+}
+/* 操作区：绝对定位在右侧，flex 横向排列两个按钮，z-index:0 默认被 item 遮挡 */
+.chat-session-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  z-index: 0;
+}
+/* 操作按钮通用样式：等宽 70px、白色文字、无边框、字体居中 */
+.chat-session-action-btn {
+  width: 70px;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chat-session-action-btn:active {
+  opacity: 0.8;
+}
+.chat-session-action-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* 置顶/取消置顶按钮：主色背景 */
+.chat-session-pin-btn {
+  background: var(--primary);
+}
+/* 删除按钮：红色背景 */
+.chat-session-del-btn {
+  background: var(--danger);
+}
+
+/* 桌面断点（≥768px）：按钮字体/尺寸保持正常 */
+@media (min-width: 768px) {
+  .chat-session-action-btn {
+    font-size: 15px;
+  }
+}
+
+/* === 【旅行功能的实现】旅行页 — 地图容器 === */
+/* 地图区：高 300px，圆角，Leaflet 内部创建 DOM */
+.map-container {
+  width: 100%;
+  height: 300px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+  margin: 0;
+}
+/* Leaflet 弹出层字体与主题一致 */
+.leaflet-popup-content {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.leaflet-popup-content b {
+  font-size: 14px;
+  color: var(--text);
+}
+.leaflet-popup-content a {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+/* 地图加载失败占位 */
+.map-fallback {
+  width: 100%;
+  height: 300px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.map-fallback svg {
+  margin-bottom: 10px;
+  opacity: 0.5;
+}
+
+/* === 【旅行功能的实现】附近景点 — 横向滚动卡片区 === */
+.nearby-section {
+  background: var(--surface);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.nearby-scroll {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.nearby-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* 附近景点卡片：小尺寸竖排卡片（图+名+距离） */
+.nearby-card {
+  flex-shrink: 0;
+  width: 110px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s;
+  box-shadow: var(--shadow-sm);
+}
+.nearby-card:active {
+  transform: scale(0.96);
+}
+.nearby-card-img {
+  width: 100%;
+  height: 70px;
+  background: var(--border);
+  overflow: hidden;
+}
+.nearby-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nearby-card-info {
+  padding: 6px 8px 8px;
+}
+.nearby-card-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.nearby-card-dist {
+  font-size: 11px;
+  color: var(--primary);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* === 【旅行功能的实现】旅行计划卡片列表 === */
+.trip-list {
+  padding: 0 16px;
+}
+.trip-card {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trip-card:active {
+  background: var(--bg);
+}
+.trip-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.trip-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trip-card-dest {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.trip-card-date {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+.trip-card-arrow {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+/* 新建按钮包裹 */
+.trip-new-btn-wrap {
+  padding: 16px;
+}
+
+.trip-edit-form .form-group {
+  margin-bottom: 14px;
+}
+.trip-edit-form label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+/* 日期行：flex 双列 */
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* 每日行程区 */
+.day-section {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.day-header {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+/* 景点选择器：select + 添加按钮 */
+.day-attraction-picker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.day-attraction-picker select {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  max-width: calc(100% - 70px);
+}
+/* 已选景点条目 */
+.day-items {
+  margin-top: 8px;
+}
+.day-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.day-item:last-child {
+  border-bottom: none;
+}
+.day-item-name {
+  font-size: 13px;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 60px;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.day-item-note {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+}
+.day-item-remove {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.day-item-remove:active {
+  background: rgba(248, 113, 113, 0.25);
+}
+/* 天数输入 */
+#trip-days {
+  width: 80px;
+}
+
+/* === 【旅行功能的实现】计划详情页 === */
+.trip-detail-header {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.trip-detail-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+.trip-detail-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trip-detail-item {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+/* 每日行程列表 */
+.trip-detail-days {
+  margin-bottom: 16px;
+}
+.trip-detail-day {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.trip-detail-day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+.trip-detail-day-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 2px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.trip-detail-day-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 景点条目行 */
+.trip-detail-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trip-detail-item-row:last-child {
+  border-bottom: none;
+}
+.trip-detail-item-row:active {
+  background: var(--bg);
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.trip-detail-item-img {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.trip-detail-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.trip-detail-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trip-detail-item-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.trip-detail-item-arrow {
+  flex-shrink: 0;
+}
+/* 日行程空态 */
+.trip-detail-day-empty {
+  font-size: 13px;
+  color: var(--text-hint);
+  text-align: center;
+  padding: 12px 0;
+}
+/* 删除按钮区 */
+.trip-detail-actions {
+  padding: 0 0 20px;
+}
+
+/* === 【旅行强化的实现】CSS 样式新增：星级打分、打卡、目的地 tab、关联景点、足迹 === */
+
+/* --- 星级打分 --- */
+.star-rating-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.star-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.star-rating {
+  display: flex;
+  gap: 2px;
+}
+.star-rating .star {
+  font-size: 26px;
+  color: var(--border);
+  cursor: pointer;
+  transition: color .15s, transform .15s;
+  user-select: none;
+}
+.star-rating .star.active {
+  color: #f59e0b;
+}
+.star-rating .star:active {
+  transform: scale(1.2);
+}
+.my-rating-hint {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-left: 4px;
+}
+
+/* --- 打卡按钮 --- */
+.checkin-btn {
+  gap: 4px;
+}
+.checkin-btn.checked-in {
+  color: var(--primary);
+}
+.checkin-text {
+  font-size: 12px;
+}
+.checkin-count {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-left: auto;
+}
+
+/* --- 动态评分 info 行 --- */
+.detail-meta .detail-rating {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+/* --- 目的地 tab（横滑） --- */
+.dest-tabs-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  padding: 0;
+}
+.dest-tabs-wrap::-webkit-scrollbar {
+  display: none;
+}
+.dest-tabs {
+  display: flex;
+  gap: 0;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.dest-tab {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-radius: 16px;
+  background: var(--bg);
+  margin-right: 8px;
+  transition: all .2s;
+  cursor: pointer;
+}
+.dest-tab.active {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* --- 关联景点搜索下拉（note-edit） --- */
+.attraction-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 50;
+  max-height: 200px;
+  overflow-y: auto;
+}
+#linked-attraction-area {
+  position: relative;
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  transition: background .15s;
+}
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+.dropdown-item:active {
+  background: var(--bg);
+}
+.dropdown-item img {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.dropdown-item span {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dropdown-no-img {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xs);
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-hint);
+  flex-shrink: 0;
+}
+.dropdown-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-hint);
+}
+
+/* --- 已选关联景点卡片（note-edit） --- */
+.linked-attraction-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--primary);
+}
+.linked-attraction-img {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.linked-attraction-info {
+  flex: 1;
+  min-width: 0;
+}
+.linked-attraction-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.linked-attraction-hint {
+  font-size: 11px;
+  color: var(--primary);
+  margin-top: 2px;
+}
+.linked-attraction-remove {
+  font-size: 18px;
+  color: var(--text-hint);
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+/* --- 关联景点横幅（note-detail） --- */
+.linked-attraction-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--primary-light);
+  margin: 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  transition: background .15s;
+}
+.linked-attraction-banner:active {
+  background: #d4f0ec;
+}
+.linked-attraction-banner-img {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.linked-attraction-banner-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.linked-attraction-banner-label {
+  font-size: 11px;
+  color: var(--primary);
+}
+.linked-attraction-banner-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- 足迹 map --- */
+.footprint-map-container {
+  border-radius: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* --- 足迹列表 --- */
+.footprint-list {
+  padding: 0;
+}
+.footprint-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background .15s;
+}
+.footprint-item:active {
+  background: var(--bg);
+}
+.footprint-item-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.footprint-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.footprint-item-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.footprint-item-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 4px;
+}
+
+/* === 【旅行概览的实现】三张小卡 — 打卡景点数/去过城市数/旅行计划数 === */
+/* 三张小卡容器：flex 横向排列，等宽 */
+.overview-cards {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 8px;
+}
+/* 单张小卡：白底圆角卡片 + 阴影 + 等分 */
+.overview-card {
+  flex: 1;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px 10px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+/* 数字：大号 + 主题色 + 粗体 */
+.overview-card-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.2;
+}
+/* 标签：小号灰色 */
+.overview-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* === 【热门目的地的实现】城市卡片 — 横向滚动彩色卡片 === */
+/* 横向滚动容器：隐藏滚动条 */
+.dest-cards-scroll {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.dest-cards-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* 城市卡片：渐变背景 + 圆角 + 白色文字 + 点击微缩动效 */
+.dest-card {
+  flex-shrink: 0;
+  width: 120px;
+  height: 80px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+  box-shadow: var(--shadow-md);
+  color: #fff;
+}
+.dest-card:active {
+  transform: scale(0.96);
+}
+/* 城市名：粗体白色 */
+.dest-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+/* 右箭头：底部右对齐 */
+.dest-card-arrow {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+}
+.dest-card {
+  position: relative;
+}
+
+/* === 【结伴同行的实现】发布按钮 + 表单 + 列表 + 卡片 + 删除 === */
+/* 发布按钮行 */
+.buddy-post-btn-wrap {
+  padding: 0 16px 8px;
+}
+/* 发布表单包裹 */
+.buddy-form-wrap {
+  padding: 0 16px 12px;
+}
+/* 表单区：白底圆角卡片 + 内边距 */
+.buddy-form {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 表单操作按钮行：右对齐 */
+.buddy-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+/* 结伴列表 */
+.buddy-list {
+  padding: 0 16px;
+}
+/* 结伴卡片：白底圆角 + 阴影 + 间距 */
+.buddy-card {
+  display: flex;
+  align-items: flex-start;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.buddy-card-body {
+  flex: 1;
+  min-width: 0;
+}
+/* 目的地：粗体主色 */
+.buddy-card-dest {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+/* 日期：小号灰色 */
+.buddy-card-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+/* 备注描述：正文颜色 */
+.buddy-card-desc {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  margin-top: 4px;
+  word-break: break-word;
+}
+/* 发布者信息行：头像 + 昵称 */
+.buddy-card-poster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+/* 删除按钮：红色 ×，绝对定位在卡片右上角 */
+.buddy-delete-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-left: 8px;
+}
+.buddy-delete-btn:active {
+  background: rgba(248, 113, 113, 0.25);
+}
+
+/* === 【个人中心的实现】侧边栏退出登录项——红字样式 === */
+/* 退出登录收纳进侧边栏：红色文字 + 危险操作视觉提示 */
+.side-drawer-logout {
+  color: var(--danger) !important;
+  font-weight: 500;
+}
+
+/* === 【我的资产入口的实现】profile 页"我的资产"三按钮栏 === */
+/* 三按钮容器：flex 横向排列，白底圆角卡片 + 阴影，与签到卡片风格一致 */
+.profile-assets {
+  display: flex;
+  gap: 0;
+  margin: 12px 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* 单个入口项：等宽 + 居中对齐 + 图标+文字纵向排列 */
+.profile-assets-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-right: 1px solid var(--border-light);
+}
+.profile-assets-item:last-child {
+  border-right: none;
+}
+.profile-assets-item:active {
+  background: var(--bg);
+}
+/* 图标圆形底：主题色淡背景 + 圆角 12px，包裹 SVG */
+.profile-assets-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+/* 入口标签文字 */
+.profile-assets-label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* === 【钱包资产的实现】钱包页三资产卡片 === */
+/* 钱包页内容区 */
+.wallet-content {
+  padding: 16px;
+}
+/* 三资产卡片容器：flex 横向等宽排列 */
+.wallet-cards {
+  display: flex;
+  gap: 10px;
+}
+/* 单张资产卡片：白底圆角 + 阴影 + 等分 */
+.wallet-card {
+  flex: 1;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+/* 资产卡片图标圆形底 */
+.wallet-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+/* 余额卡片图标：金色底 */
+.wallet-card-icon.balance {
+  background: #fef3c7;
+}
+/* 积分卡片图标：绿色底 */
+.wallet-card-icon.points {
+  background: var(--primary-light);
+}
+/* 优惠券卡片图标：蓝色底 */
+.wallet-card-icon.coupon {
+  background: #dbeafe;
+}
+/* 资产数值：大号粗体 */
+.wallet-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+/* 资产标签：小号灰色 */
+.wallet-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+/* 积分说明轻提示 */
+.wallet-tip {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--primary-dark);
+  line-height: 1.6;
+  text-align: center;
+}
+/* 【钱包卡点击跳转的实现】可点击卡片 + 右上角箭头 */
+.wallet-card-clickable {
+  cursor: pointer;
+  position: relative;
+  transition: transform .15s, box-shadow .15s;
+}
+.wallet-card-clickable:active {
+  transform: scale(0.97);
+  box-shadow: var(--shadow-md);
+}
+.wallet-card-arrow {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === 【订单管理的实现】订单列表卡片 === */
+/* 订单内容区 */
+.orders-content {
+  padding: 0;
+}
+/* 单个订单卡片：白底圆角 + 阴影 + 间距 + 可点击 */
+.order-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform .15s;
+}
+.order-card:active {
+  transform: scale(0.98);
+}
+/* 订单头部行：票名 + 状态徽标 */
+.order-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+/* 票名：粗体 */
+.order-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 订单状态徽标 */
+.order-status {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+/* 已完成/已支付：绿色背景 */
+.order-status.done {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+/* 待支付/处理中：橙色背景 */
+.order-status.pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+/* 已取消/退款：灰色背景 */
+.order-status.cancel {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+/* 订单信息行：金额 + 支付方式 + 时间 */
+.order-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+/* 金额高亮 */
+.order-price {
+  font-weight: 600;
+  color: var(--danger);
+}
+/* 时间标签 */
+.order-time {
+  font-size: 12px;
+  color: var(--text-hint);
+}
+/* 未支付订单付款提示：浅色小字 */
+.order-pay-tip {
+  font-size: 12px;
+  color: #b45309;
+  margin-top: 6px;
+}
+/* 订单号：完整订单号小字号显示，过长可换行（同秒杀券 .coupon-card-id 标准） */
+.order-card-id {
+  font-size: 11px;
+  color: var(--text-hint);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+/* === 【订单详情的实现】订单详情页样式 === */
+/* 订单详情——状态横幅（三色：pending 橙/done 绿/cancel 灰） */
+.order-detail-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  margin: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+}
+.order-detail-banner.pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+.order-detail-banner.done {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.order-detail-banner.cancel {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+/* 订单详情——信息卡片（白底圆角 + 阴影 + 行列布局） */
+.order-detail-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin: 0 16px 12px;
+  padding: 4px 16px;
+}
+.order-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.order-detail-row:last-child {
+  border-bottom: none;
+}
+.order-detail-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.order-detail-value {
+  font-size: 14px;
+  color: var(--text);
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+/* 订单详情——金额高亮（大号红色） */
+.order-detail-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--danger);
+}
+/* 订单详情——支付区（白底卡片 + 余额 + 支付按钮 + 提示） */
+.order-pay-section {
+  margin: 0 16px 16px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.order-pay-balance {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 14px;
+  text-align: center;
+  font-weight: 500;
+}
+.order-pay-section .order-pay-tip {
+  font-size: 12px;
+  color: #b45309;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* === 【积分记录的实现】积分流水列表 === */
+/* 积分内容区 */
+.points-content {
+  padding: 0;
+}
+/* 单条积分记录：flex 横向排列 */
+.points-record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+/* 记录描述：左侧主文字 */
+.points-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+}
+/* 记录时间：描述下方的次要文字 */
+.points-desc .points-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+/* 类型标签：小药丸 */
+.points-type-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+/* 变动数值 */
+.points-change {
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* 正数：绿色 + 加号 */
+.points-change.positive {
+  color: var(--success);
+}
+/* 负数/零：灰色（实际扣减使用红色） */
+.points-change.negative {
+  color: var(--danger);
+}
+
+/* === 【余额明细的实现】余额页样式 === */
+/* 余额内容区 */
+.balance-content {
+  padding: 0;
+}
+/* 顶部余额卡：白底主题色渐变 */
+.balance-top-card {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  margin: 16px;
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  color: #fff;
+  text-align: center;
+}
+.balance-top-label {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+.balance-top-value {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+/* 充值入口卡 */
+.balance-recharge-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.balance-recharge-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.balance-recharge-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.balance-recharge-desc {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+/* 消费记录——section title */
+.balance-records-section {
+  padding: 0;
+}
+/* 单条消费记录 */
+.balance-record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.balance-record-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.balance-record-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+/* 类型标签 */
+.balance-type-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+/* 变动金额 */
+.balance-change {
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.balance-change.positive {
+  color: var(--success);
+}
+.balance-change.negative {
+  color: var(--danger);
+}
+/* 充值弹层 */
+.recharge-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0,0,0,0);
+  transition: background 0.25s;
+}
+.recharge-mask.show {
+  background: rgba(0,0,0,0.45);
+}
+.recharge-panel {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.recharge-mask.show .recharge-panel {
+  transform: translateY(0);
+}
+.recharge-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+.recharge-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.recharge-panel-close {
+  font-size: 22px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  line-height: 1;
+}
+.recharge-panel-body {
+  padding: 16px;
+}
+.recharge-input-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+}
+.recharge-currency {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin-right: 8px;
+}
+.recharge-amount-input {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 600;
+  border: none !important;
+  padding: 4px 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: var(--text);
+}
+.recharge-amount-input::placeholder {
+  color: var(--text-hint);
+  font-weight: 400;
+  font-size: 16px;
+}
+.recharge-quick-amounts {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.recharge-quick-btn {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s;
+}
+.recharge-quick-btn:active {
+  background: #d4f0ec;
+}
+.recharge-pay-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.recharge-pay-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.recharge-pay-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .2s;
+}
+.recharge-pay-tab.active {
+  color: var(--primary);
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+.recharge-panel-footer {
+  padding: 12px 16px 20px;
+}
+
+/* === 【秒杀券详情的实现】券列表样式 === */
+.coupons-content {
+  padding: 0;
+}
+/* 券卡片：白底圆角 + 左右布局 */
+.coupon-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  margin: 0 16px 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform .15s;
+}
+.coupon-card:active {
+  transform: scale(0.98);
+}
+.coupon-card-left {
+  flex: 1;
+  min-width: 0;
+}
+.coupon-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 【秒杀券详情的实现】券编号：完整订单号小字号显示，过长可换行 */
+.coupon-card-id {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 4px;
+  font-family: monospace;
+  word-break: break-all;
+}
+.coupon-card-time {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+.coupon-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.coupon-card-status {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* === 【秒杀券详情的实现】条形码弹层样式 === */
+.barcode-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0);
+  transition: background .2s;
+}
+.barcode-mask.show {
+  background: rgba(0,0,0,0.55);
+}
+.barcode-card {
+  width: 320px;
+  max-width: 90vw;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity .2s, transform .2s;
+}
+.barcode-mask.show .barcode-card {
+  opacity: 1;
+  transform: scale(1);
+}
+.barcode-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.barcode-card-close {
+  font-size: 22px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  line-height: 1;
+}
+.barcode-card-body {
+  padding: 20px 16px 16px;
+  text-align: center;
+}
+.barcode-canvas-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+.barcode-canvas-wrap canvas {
+  max-width: 100%;
+}
+/* CSS 条纹降级 */
+.barcode-fallback {
+  text-align: center;
+}
+.barcode-stripes {
+  display: inline-flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.barcode-fallback-num {
+  font-size: 14px;
+  font-family: monospace;
+  color: var(--text);
+  margin-top: 8px;
+  letter-spacing: 2px;
+}
+/* 【秒杀券详情的实现】弹层订单详情信息区：标签灰 + 值黑，左对齐信息行 */
+.barcode-info {
+  margin-top: 16px;
+  text-align: left;
+}
+.barcode-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-light);
+}
+.barcode-info-row:last-of-type {
+  border-bottom: none;
+}
+.barcode-info-label {
+  flex-shrink: 0;
+  color: var(--text-hint);
+}
+.barcode-info-value {
+  color: var(--text);
+  text-align: right;
+  word-break: break-all;
+}
+.barcode-info-tip {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* === 【积分记录的实现】积分余额卡 === */
+.points-balance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  margin: 12px 16px;
+  padding: 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.points-balance-left {
+  flex: 1;
+}
+.points-balance-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.points-balance-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+/* === 【积分抵扣的实现】订单支付区积分抵扣样式 === */
+.order-points-deduct {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+.order-points-deduct-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.order-points-deduct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.order-points-input {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.order-points-available {
+  font-size: 12px;
+  color: var(--primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.order-points-quick {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.order-points-quick-btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background .15s;
+}
+.order-points-quick-btn:active {
+  background: #d4f0ec;
+}
+.order-points-result {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+.order-points-final {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+/* === 【全局搜索的实现】搜索页样式 === */
+
+/* 搜索页头部：搜索框 + 取消按钮 一行排列 */
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+/* 搜索框包裹：flex-1 + 圆角背景 + 图标/输入/清除 */
+.search-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--bg);
+  border-radius: 20px;
+  border: 1px solid transparent;
+  transition: border-color .2s;
+}
+.search-input-wrap:focus-within {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+/* 搜索输入框：无边框/无背景，全宽 */
+.search-input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 8px 0 !important;
+  font-size: 15px;
+  color: var(--text);
+  border-radius: 0 !important;
+}
+.search-input::placeholder {
+  color: var(--text-hint);
+}
+/* 清除按钮：小圆形，输入有内容时显示 */
+.search-clear-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.08);
+  transition: background .15s;
+}
+.search-clear-btn:active {
+  background: rgba(0,0,0,0.15);
+}
+/* 取消按钮 */
+.search-cancel-btn {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color .15s;
+}
+.search-cancel-btn:active {
+  color: var(--primary);
+}
+
+/* 热门搜索区 */
+.search-hot-wrap {
+  padding: 16px;
+}
+/* 热门标题 */
+.search-hot-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+/* 空态 */
+.search-hot-empty {
+  font-size: 13px;
+  color: var(--text-hint);
+  text-align: center;
+  padding: 20px 0;
+}
+/* 热门词条 chips：横向 flex-wrap 排列 */
+.search-hot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* 单个 chip：圆角药丸 + 主题色浅背景 */
+.search-hot-chip {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--primary);
+  background: var(--primary-light);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  user-select: none;
+}
+.search-hot-chip:active {
+  background: #d4f0ec;
+  transform: scale(0.96);
+}
+
+/* 联想列表 */
+.search-suggest-list {
+  padding: 0;
+}
+/* 联想项：图标 + 文字，点击触发搜索 */
+.search-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+  transition: background .15s;
+}
+.search-suggest-item:active {
+  background: var(--bg);
+}
+
+/* 搜索结果 tab 栏 */
+.search-result-tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+/* 单个 tab：等宽 + 居中 + 底部指示条 */
+.search-result-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color .2s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.search-result-tab.active {
+  color: var(--primary);
+}
+.search-result-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+}
+/* tab 内计数标签 */
+.search-tab-count {
+  font-size: 11px;
+  color: var(--text-hint);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-weight: 400;
+}
+
+/* 搜索结果列表（景点卡片复用 .attraction-card） */
+.search-result-list {
+  padding: 8px 0;
+}
+
+/* 用户搜索结果 */
+.search-user-list {
+  padding: 0;
+}
+/* 用户行：头像 + 昵称/签名 + 箭头 */
+.search-user-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background .15s;
+}
+.search-user-item:active {
+  background: var(--bg);
+}
+.search-user-info {
+  flex: 1;
+  min-width: 0;
+}
+.search-user-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.search-user-sign {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* === 【游记列表的实现】浮动按钮组（回到顶部 + 刷新） === */
+/* 容器：fixed 定位，与 app-container 同宽居中，右对齐 */
+.float-actions {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 80;
+}
+.float-actions.show {
+  display: flex;
+}
+/* 单个按钮：40px 圆形，主题色背景，白色图标 */
+.float-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+.float-btn:active {
+  transform: scale(0.92);
+  opacity: 0.85;
+}
+/* 刷新旋转动画 */
+.float-btn.spinning svg {
+  animation: spin 0.7s linear infinite;
+}
+.float-btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ===================================================================
+   【响应式适配的实现】@media 断点
+   =================================================================== */
+
+/* --- 极小屏 (≤360px)：缩减间距、字号，保证 320px 无横向滚动 --- */
+@media (max-width: 360px) {
+  .page-content { padding: 10px 12px; }
+  .page-header { padding: 10px 12px; }
+  .page-header h2 { font-size: 15px; }
+  .section-title { font-size: 15px; padding: 12px 12px 6px; }
+  .search-bar { padding: 8px 12px; gap: 8px; }
+  .channel-tabs { margin: 8px 12px; }
+  .tabs-scroll { padding: 6px 8px; gap: 2px; }
+  .tab-item { font-size: 11px; padding: 6px 2px; }
+  .notes-waterfall { columns: 2; column-gap: 8px; padding: 10px 12px 14px; }
+  .feed-list { padding: 0 12px; }
+  .attraction-card .card-img { width: 100px; min-height: 90px; }
+  .attraction-card .card-info { padding: 10px; gap: 4px; }
+  .attraction-card .card-name { font-size: 14px; }
+  .profile-header { padding: 20px 12px; gap: 10px; }
+  .sign-card { margin: 10px 12px; padding: 14px; }
+  .login-page { padding: 32px 16px; }
+  .login-form { max-width: 100%; }
+  .login-tabs { max-width: 100%; }
+  .login-logo { font-size: 24px; }
+  .register-page { padding: 20px 16px; }
+  .register-form { max-width: 100%; }
+  .edit-form { padding: 12px; }
+  .detail-header { padding: 12px; }
+  .detail-title { font-size: 16px; }
+  .detail-content { padding: 12px; font-size: 14px; }
+  .detail-actions { padding: 10px 12px; gap: 14px; }
+  .detail-section { padding: 12px; }
+  .modal-card { width: auto; }
+  .avatar-preview-card { width: auto; padding: 24px 16px 16px; }
+  .avatar-preview-img { width: 150px; height: 150px; }
+  .follows-list { padding: 0 12px; }
+  .browse-item { padding: 12px; }
+  .msg-categories { padding: 12px 12px 6px; gap: 8px; }
+  .msg-cat-circle { width: 56px; height: 56px; }
+  /* 【分类未读角标的实现】极小屏适配：分类圈 56px 时角标微缩，避免压住圆形图标主体 */
+  .msg-cat-badge { min-width: 14px; height: 14px; font-size: 9px; border-radius: 7px; padding: 0 2px; }
+  .msg-cat-badge-lg { min-width: 18px; border-radius: 9px; padding: 0 3px; }
+  .overview-cards { padding: 0 12px 6px; gap: 8px; }
+  .overview-card { padding: 12px 8px; }
+  .overview-card-num { font-size: 24px; }
+  .ticket-card { padding: 12px; }
+  .ticket-card .ticket-pay { font-size: 18px; }
+  .trip-detail-header { padding: 12px; }
+  .trip-detail-day { padding: 12px; }
+  .buddy-card { padding: 12px; }
+  .dest-cards-scroll { padding: 0 12px 10px; gap: 8px; }
+  .dest-card { width: 100px; height: 70px; }
+  .dest-card-name { font-size: 14px; }
+  .nearby-scroll { padding: 0 12px; gap: 8px; }
+  .nearby-card { width: 100px; }
+  .search-header { padding: 8px 12px; }
+  .search-hot-wrap { padding: 12px; }
+  .fav-tabs { margin: 0 12px 10px; }
+  .fav-item { padding: 10px 12px; }
+  .profile-menu { margin: 0 12px; }
+  .chat-messages { padding: 10px 12px; }
+  .chat-session-item { padding: 12px; }
+  .comment-item { padding: 10px 0; }
+  .comment-box { padding: 10px 12px; }
+  .user-tabs { margin: 10px 12px 0; }
+  .float-actions { padding-right: 12px; }
+  /* 极小屏下确保轮播容器不溢出 */
+  .img-carousel { overflow: hidden; }
+  .img-carousel .carousel-track { width: 100%; }
+}
+
+/* --- 桌面宽屏 (≥768px)：手机容器居中，背景加深，添加边框/圆角/阴影 --- */
+@media (min-width: 768px) {
+  html { background: #e8eaed; }
+  body {
+    background: #d5d7db;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.18) transparent;
+  }
+  body::-webkit-scrollbar { width: 6px; }
+  body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
+  .app-container {
+    margin: 20px auto 24px;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
+    overflow: hidden;
+    min-height: calc(100dvh - 44px);
+  }
+  .global-search-bar {
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .tabbar {
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: 0 -1px 3px rgba(0,0,0,0.06);
+  }
+  /* 桌面弹窗滚动条 */
+  .side-drawer::-webkit-scrollbar { width: 4px; }
+  .side-drawer::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+  /* 桌面下抽屉从居中手机容器(480px)左缘展开，而非浏览器最左侧 */
+  .side-drawer {
+    left: calc(50% - 240px);
+    transition: transform 0.25s ease, left 0.25s ease;
+  }
+  /* 关闭态归位到屏幕左缘之外（left:0 + translateX(-100%) 完全隐藏），保证滑出动画平滑 */
+  .side-drawer:not(.show) {
+    left: 0;
+  }
+}
+
+/* --- 溢出修复：确保 320px 等小屏下无横向滚动 —— 全局兜底 --- */
+.app-container { overflow-x: hidden; }
+.img-carousel { overflow: hidden; max-width: 100%; }
+.img-carousel .carousel-track { max-width: 100%; }
+/* 所有固定宽度元素在小屏下不超界 */
+.login-form, .register-form, .login-tabs { max-width: 100%; }
+.modal-card, .avatar-preview-card { max-width: 90vw; }
+.notes-waterfall { overflow-x: hidden; }
+.btn-sm { min-height: 32px; }
+/* 触屏目标尺寸：关键点击区高度 ≥ 40px */
+.tabbar-item { min-height: 44px; }
+.channel-tab { min-height: 40px; }
+.tab-item { min-height: 36px; }
+.login-tab, .fav-tab, .user-tab { min-height: 36px; }

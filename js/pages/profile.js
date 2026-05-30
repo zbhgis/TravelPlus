@@ -1,23 +1,26 @@
 /**
- * 【个人中心页的实现】#/profile 页面渲染模块——小红书样式我的页
- * 职责：背景图头部（悬浮头像）、签到日历、签到按钮、我的游记列表（含删除）、退出登录
- * 依赖：api.js (get/post/del)、ui.js (imgUrl/imgError/showLoading/showEmpty/toast)、store.js (isLoggedIn/getUser/logout)
+ * 【个人中心的实现】#/profile 页面渲染模块——完整个人主页
+ * 职责：头部（背景图+头像+昵称+简介）+ 左上角菜单按钮 → 左侧抽屉侧边栏（编辑资料/浏览记录/客服）、统计行（关注/粉丝/获赞）、我的资产入口（订单管理/我的钱包/积分记录）、签到点阵、tab 区（游记/评论/收藏/赞过/足迹，复用 user.js renderUserTabs）、退出登录
+ * 依赖：api.js (get/post)、ui.js (imgUrl/imgError/toast)、store.js (isLoggedIn/getUser/logout)、user.js (renderUserTabs)
  * 核心链路：
  *   renderProfile(container)
  *     → 未登录 → 显示引导 + "去登录"按钮
- *     → 已登录 → 并行加载签到天数 (GET /user/sign/count) + 签到日期列表 (GET /user/sign/list)
- *     → 渲染小红书样式头部：.profile-cover（背景图 cover 150px + 头像 avatar-xhs 负 margin 悬浮叠加 + 居中昵称）
- *     → 签到区：已连续签到 N 天 + 签到按钮 + 签到日历
- *     → 我的游记列表：GET /note/of/me → 卡片列表 + × 删除按钮
- *     → 退出登录：POST /user/logout（双保险：无论成败均 logout() + toast"已退出" + 跳 #/home）
+ *     → 已登录 → 并行加载 GET /user/home/{me}（用户主页数据+统计+简介）+ GET /user/sign/count（签到天数）+ GET /user/sign/list（签到日期列表）
+ *     → 渲染头部：背景图（实时 home 数据 user.bgImage cover，无则渐变；localStorage 可能过期）+ avatar-xhs 悬浮头像 + 昵称 + 简介（info.introduce）
+ *     → 统计行：关注(followee)/粉丝(fans)/获赞(likedCount) —— 点击跳 #/user/{me}/follows
+ *     → 我的资产入口：统计行下方三按钮横向栏（订单管理→#/orders、我的钱包→#/wallet、积分记录→#/points），图标圆角底 + 文字，与现有卡片风格一致
+ *     → 侧边栏：左上角☰菜单按钮 → 点击弹出左侧抽屉（编辑资料/浏览记录/客服），点击遮罩或项关闭
+ *     → 签到：紧凑点阵（已连续签到N天 + 签到按钮 + 本月圆点行）—— 今天已签到则按钮显示"已签到"禁用态
+ *     → tab 区：renderUserTabs(container, meId) → 游记/评论/收藏/赞过/足迹（与 user.js 共用单一实现）
+ *     → 退出登录：POST /user/logout 双保险 + logout() + toast + #/home
  * 子功能：
- *   - 签到：POST /user/sign → 刷新天数 + 重新拉取签到列表刷新日历
- *   - 游记删除：DELETE /note/{id} → 移除卡片 DOM
- *   - 头像点击 → #/user/{自己id}
+ *   - 签到：POST /user/sign → 刷新天数 + 重新拉取签到列表刷新点阵；今天已签到→按钮禁用显示"已签到"
+ *   - renderSignDots()：紧凑签到点阵渲染（保留不变）
  */
-import { get, post, del } from '../api.js';
-import { imgUrl, imgError, showLoading, showEmpty, toast } from '../ui.js';
+import { get, post } from '../api.js';
+import { imgUrl, imgError, toast, confirmDialog } from '../ui.js';
 import { isLoggedIn, getUser, logout } from '../store.js';
+import { renderUserTabs } from './user.js';
 
 export async function renderProfile(container) {
   const user = getUser();
@@ -40,6 +43,10 @@ export async function renderProfile(container) {
 
   container.innerHTML = `
     <div class="page-header">
+      <!-- 【个人中心的实现】左上角菜单按钮：☰ 图标，点击打开左侧抽屉侧边栏 -->
+      <button class="menu-btn" id="profile-menu-btn" aria-label="菜单">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <h2>我的</h2>
     </div>
     <div id="profile-content">
@@ -50,48 +57,134 @@ export async function renderProfile(container) {
   const contentEl = container.querySelector('#profile-content');
 
   try {
-    let signCount = 0;
-    try { signCount = await get('/user/sign/count'); } catch {}
-
-    /** 【签到功能的实现】加载本月签到日期列表
-     * - GET /user/sign/list 返回本月已签到日期号数组 List<Integer>（如 [1,3,5]）
-     * - 失败静默：隐藏日历容器不阻塞页面
+    /** 【个人中心的实现】并行加载用户主页数据 + 签到数据
+     * 实现细节：
+     * - GET /user/home/{me} → user/info/统计（followee/fans/likedCount）+ introduce 简介
+     * - GET /user/sign/count → 签到天数
+     * - GET /user/sign/list → 本月签到日期数组
+     * - 任一失败静默降级（signCount=0, signedDays=[], userHomeData=null）
      */
+    const meId = user.id;
+    let signCount = 0;
     let signedDays = [];
-    try { signedDays = await get('/user/sign/list'); } catch { signedDays = []; }
+    let userHomeData = null;
+    try {
+      const results = await Promise.all([
+        get('/user/home/' + meId).catch(() => null),
+        get('/user/sign/count').catch(() => 0),
+        get('/user/sign/list').catch(() => [])
+      ]);
+      userHomeData = results[0];
+      signCount = results[1] || 0;
+      signedDays = results[2] || [];
+    } catch {
+      // 静默降级，使用默认值
+    }
+
+    const info = (userHomeData && userHomeData.info) ? userHomeData.info : {};
+    const stats = userHomeData || {};
+
+    /** 【个人中心的实现】背景/头像取实时主页数据
+     * 实现细节：
+     * - 优先取 GET /user/home/{me} 返回的 userHomeData.user（后端实时 DB 数据，含最新 bgImage/icon）
+     * - 未返回时兜底 getUser()（localStorage 缓存，可能过期——用户更新过背景/头像后缓存未刷新）
+     * - 由此保证用户编辑资料后再次进入「我的」页背景图/头像立即生效，不依赖缓存刷新
+     */
+    const homeUser = (userHomeData && userHomeData.user) ? userHomeData.user : user;
 
     /** 【用户主页的实现】我的页背景图（小红书样式）
-     * - getUser().bgImage 非空 → 全宽 150px cover 大图头部
+     * - 实时 homeUser.bgImage 非空 → 全宽 150px cover 大图头部（localStorage 可能过期，实时优先）
      * - 为空 → CSS 默认渐变（--primary-light → #c8e6e0）
      * - 加载失败 → 隐藏 img onerror 清除 inline style → 回退 CSS 渐变
      */
-    const bgImageUrl = user.bgImage ? imgUrl(user.bgImage) : '';
+    const bgImageUrl = homeUser.bgImage ? imgUrl(homeUser.bgImage) : '';
     const bgStyle = bgImageUrl ? 'background-image:url(' + bgImageUrl + ')' : '';
     const bgFallback = bgImageUrl
       ? '<img src="' + bgImageUrl + '" style="display:none" onerror="this.parentElement.style.backgroundImage=\'\'">'
       : '';
 
+    /** 【个人中心的实现】完整我的主页渲染
+     * 实现细节：
+     * - 头部：背景图（cover 150px）+ 头像 avatar-xhs 悬浮叠加 + 昵称 + 简介（GET /user/home/{me} → info.introduce）
+     * - 统计行：关注(followee)/粉丝(fans)/获赞(likedCount) —— 点击关注/粉丝跳 #/user/{meId}/follows
+     * - 操作收纳进侧边栏：左上角☰菜单按钮 → 左侧抽屉（编辑资料/浏览记录/客服），点击遮罩或项关闭（界面更简洁）
+     * - 签到：紧凑点阵（已有逻辑保留不变）
+     * - tab 区：复用 renderUserTabs（游记/评论/收藏/赞过/足迹，与 user.js 共用单一实现）
+     * - 退出登录：页尾按钮（保留不变）
+     */
     contentEl.innerHTML = `
-      <!-- 【用户主页的实现】我的页小红书样式头部：背景 cover + 头像负 margin 悬浮叠加 -->
+      <!-- 【个人中心的实现】头部：背景图 + 头像 + 昵称 + 简介 -->
       <div class="profile-cover">
         <div class="user-bg" style="${bgStyle}">${bgFallback}</div>
-        <img class="avatar avatar-xhs" src="${imgUrl(user.icon)}" alt="" onerror="imgError(event)" id="profile-avatar"/>
+        <img class="avatar avatar-xhs" src="${imgUrl(homeUser.icon)}" alt="" onerror="imgError(event)" id="profile-avatar" data-avatar-uid="${user.id}" data-avatar-icon="${imgUrl(homeUser.icon)}" data-avatar-nick="${user.nickName || '用户'}"/>
         <div class="profile-cover-name">${user.nickName || '用户'}</div>
+        ${info.introduce ? '<div class="profile-cover-bio">' + info.introduce + '</div>' : ''}
       </div>
+      <!-- 【个人中心的实现】统计行：关注(followee)/粉丝(fans)/获赞(likedCount) -->
+      <div class="user-stats">
+        <div class="user-stat-item" data-type="following">
+          <span class="user-stat-num">${stats.followee || 0}</span>
+          <span class="user-stat-label">关注</span>
+        </div>
+        <div class="user-stat-item" data-type="fans">
+          <span class="user-stat-num">${stats.fans || 0}</span>
+          <span class="user-stat-label">粉丝</span>
+        </div>
+        <div class="user-stat-item">
+          <span class="user-stat-num">${stats.likedCount || 0}</span>
+          <span class="user-stat-label">获赞</span>
+        </div>
+      </div>
+      <!-- 【我的资产入口的实现】统计行下方三按钮栏：订单管理 / 我的钱包 / 积分记录
+           实现细节：
+           - .profile-assets 容器 + 3 个 .profile-assets-item，横向等宽排列
+           - 每个入口含图标圆角底（profile-assets-icon）+ 文字标签
+           - 点击分别跳转 #/orders、#/wallet、#/points -->
+      <div class="profile-assets">
+        <div class="profile-assets-item" data-hash="#/orders">
+          <div class="profile-assets-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0E9F8A" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="5" y="12" width="4" height="2" rx="0.5"/><rect x="11" y="12" width="4" height="2" rx="0.5"/></svg>
+          </div>
+          <span class="profile-assets-label">订单管理</span>
+        </div>
+        <div class="profile-assets-item" data-hash="#/wallet">
+          <div class="profile-assets-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0E9F8A" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          </div>
+          <span class="profile-assets-label">我的钱包</span>
+        </div>
+        <div class="profile-assets-item" data-hash="#/points">
+          <div class="profile-assets-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0E9F8A" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <span class="profile-assets-label">积分记录</span>
+        </div>
+      </div>
+      <!-- 【签到功能的实现】紧凑签到条：天数胶囊 + 按钮 + 本月签到点阵 -->
       <div class="sign-card">
         <div class="sign-info">已连续签到 <span class="sign-days" id="sign-days">${signCount}</span> 天</div>
         <button class="btn btn-primary btn-sm" id="sign-btn">签到</button>
       </div>
-      <div class="sign-calendar-wrap" id="sign-calendar-wrap"></div>
-      <div class="section-title">我的游记</div>
-      <div class="page-content" id="my-notes-list"></div>
-      <div style="padding:20px 16px;">
-        <button class="btn btn-outline btn-block" id="logout-btn">退出登录</button>
-      </div>
+      <div class="sign-dots-wrap" id="sign-dots-wrap"></div>
+      <!-- 【个人中心的实现】tab 区容器：由 renderUserTabs 动态渲染（游记/评论/收藏/赞过/足迹） -->
+      <div id="profile-tab-area"></div>
+      <!-- 【个人中心的实现】侧边栏遮罩与抽屉：由 JS 动态创建并挂载到 document.body（见下方 createSideDrawer） -->
     `;
 
     // Sign-in
     const signBtn = contentEl.querySelector('#sign-btn');
+    /** 【签到功能的实现】签到按钮状态修复：今天已签到→显示"已签到"禁用态
+     * 实现细节：
+     * - 今天日期号 ∈ signedDays（后端返回的本月已签日期数组）→ 按钮显示"已签到" + disabled + 样式变灰
+     * - 今天未签到 → 按钮显示"签到"可点击
+     * - 点击签到成功后立即切换为"已签到"禁用态 + toast"签到成功，积分+2"
+     * - 重复签到被后端拒绝时 api.js 自动 toast 后端 errorMsg
+     */
+    const todayDate = new Date().getDate();
+    if (signedDays && signedDays.includes(todayDate)) {
+      signBtn.disabled = true;
+      signBtn.textContent = '已签到';
+    }
     signBtn.addEventListener('click', async () => {
       try {
         await post('/user/sign');
@@ -99,168 +192,231 @@ export async function renderProfile(container) {
         contentEl.querySelector('#sign-days').textContent = cnt;
         signBtn.disabled = true;
         signBtn.textContent = '已签到';
-        toast('签到成功');
-        /** 【签到功能的实现】签到后刷新日历
-         * - 重新拉取签到列表，刷新日历网格
-         * - 本地更新今天格子高亮（即使接口失败也尝试本地更新）
+        toast('签到成功，积分+2');
+        /** 【签到功能的实现】签到后刷新点阵
+         * - 重新拉取签到列表，刷新本月签到点阵
+         * - 本地更新今天圆点高亮（即使接口失败也尝试本地更新）
          */
         try {
           const updatedDays = await get('/user/sign/list');
-          renderSignCalendar(contentEl.querySelector('#sign-calendar-wrap'), updatedDays || []);
+          renderSignDots(contentEl.querySelector('#sign-dots-wrap'), updatedDays || []);
         } catch {
           // 本地更新：直接追加今天日期到已有列表
-          const today = new Date().getDate();
-          const merged = [...new Set([...(signedDays || []), today])];
-          renderSignCalendar(contentEl.querySelector('#sign-calendar-wrap'), merged);
+          const merged = [...new Set([...(signedDays || []), todayDate])];
+          renderSignDots(contentEl.querySelector('#sign-dots-wrap'), merged);
         }
       } catch {}
     });
 
-    /** 【签到功能的实现】初始渲染签到日历
-     * - 用已加载的 signedDays 渲染当月日历
-     * - 失败时 renderSignCalendar 内部隐藏日历容器
+    /** 【签到功能的实现】初始渲染签到点阵
+     * - 用已加载的 signedDays 渲染本月 1 号到今天的圆点行
+     * - 失败时 renderSignDots 内部隐藏容器
      */
-    renderSignCalendar(contentEl.querySelector('#sign-calendar-wrap'), signedDays || []);
+    renderSignDots(contentEl.querySelector('#sign-dots-wrap'), signedDays || []);
 
-    /** 【用户主页的实现】自己头像点击跳转用户主页
-     * - profile 页面右上角头像 → #/user/{自己id}
+    /** 【头像交互的实现】自己头像点击改由全局委托 initAvatarDelegate 统一处理
+     * - data-avatar-uid 已加在 #profile-avatar 模板中 → 自己头像→预览弹窗（含"这是您自己"标签）
+     * - 旧独立绑定已移除
      */
-    const profileAvatar = contentEl.querySelector('#profile-avatar');
-    if (profileAvatar && user.id) {
-      profileAvatar.style.cursor = 'pointer';
-      profileAvatar.addEventListener('click', () => {
-        window.location.hash = '#/user/' + user.id;
+
+    /** 【个人中心的实现】侧边栏打开/关闭逻辑
+     * 实现细节：
+     * - ☰ 菜单按钮 → 显示遮罩 + 左侧抽屉从左边滑入
+     * - 点击遮罩（.side-mask）→ 关闭抽屉
+     * - 点击关闭按钮（.side-drawer-close）→ 关闭抽屉
+     * - 点击抽屉内菜单项 → 跳转 hash + 关闭抽屉
+     * - 动画：CSS transition transform + opacity
+     *
+     * 【个人中心的实现】抽屉 fixed 定位与 transform 父容器兼容处理
+     * 实现细节：
+     * - 侧边栏 .side-drawer 使用 position:fixed，在 CSS 规范中若任何祖先元素有 transform/perspective/filter
+     *   属性，fixed 会变成相对于该祖先定位（而非 viewport），导致抽屉在手机视口下位置偏移
+     * - 修复：将 .side-mask 和 .side-drawer 直接挂载到 document.body 子级，确保不经过任何可能含 transform
+     *   的祖先（如 .app-container 或 .tabbar），fixed 定位基准始终为 viewport
+     * - 页面销毁时自动移除 body 上的抽屉 DOM，防止残留
+     */
+    // 先移除可能残留的旧抽屉（从 body 上）
+    const oldMask = document.getElementById('side-mask');
+    const oldDrawer = document.getElementById('side-drawer');
+    if (oldMask) oldMask.remove();
+    if (oldDrawer) oldDrawer.remove();
+
+    // 创建遮罩并挂载到 body
+    const sideMask = document.createElement('div');
+    sideMask.className = 'side-mask';
+    sideMask.id = 'side-mask';
+    sideMask.style.display = 'none';
+    document.body.appendChild(sideMask);
+
+    // 创建抽屉并挂载到 body
+    const sideDrawer = document.createElement('div');
+    sideDrawer.className = 'side-drawer';
+    sideDrawer.id = 'side-drawer';
+    sideDrawer.innerHTML = `
+      <div class="side-drawer-header">
+        <span>菜单</span>
+        <button class="side-drawer-close" id="side-drawer-close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="side-drawer-item" data-hash="#/user/edit">编辑资料</div>
+      <!-- 【隐私设置的实现】侧边栏独立「隐私设置」项（从编辑资料页抽离）→ #/privacy -->
+      <div class="side-drawer-item" data-hash="#/privacy">隐私设置</div>
+      <div class="side-drawer-item" data-hash="#/user/browse">浏览记录</div>
+      <div class="side-drawer-item" data-hash="#/support">客服</div>
+      <!-- 【个人中心的实现】退出登录收纳进侧边栏
+           实现细节：
+           - 红字样式（.side-drawer-logout），视觉醒目提示危险操作
+           - 点击 → confirmDialog 确认 → 现有退出逻辑（POST /user/logout + logout() + toast + #/home）
+           - 退出入口统一收纳侧边栏，页尾不再有独立退出按钮 -->
+      <div class="side-drawer-item side-drawer-logout" id="side-logout-item">退出登录</div>
+    `;
+    document.body.appendChild(sideDrawer);
+
+    const menuBtn = container.querySelector('#profile-menu-btn');
+
+    function openDrawer() {
+      sideMask.style.display = 'block';
+      // 强制回流后添加 show 类触发动画
+      void sideMask.offsetWidth;
+      sideMask.classList.add('show');
+      sideDrawer.classList.add('show');
+    }
+
+    function closeDrawer() {
+      sideMask.classList.remove('show');
+      sideDrawer.classList.remove('show');
+      // 动画结束后隐藏遮罩
+      setTimeout(() => {
+        if (!sideMask.classList.contains('show')) {
+          sideMask.style.display = 'none';
+        }
+      }, 250);
+    }
+
+    if (menuBtn) menuBtn.addEventListener('click', openDrawer);
+    if (sideMask) sideMask.addEventListener('click', closeDrawer);
+    const closeBtn = sideDrawer.querySelector('#side-drawer-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+
+    /** 【个人中心的实现】侧边栏「退出登录」项点击
+     * 实现细节：
+     * - confirmDialog 确认 → 调 POST /user/logout（api.js 自动带 authorization 头）
+     * - 无论服务端成败，均执行本地清理：logout() 清 token + 清 user
+     * - toast "已退出" → 跳 #/home
+     * - 退出入口统一收纳侧边栏，页尾不再有独立退出按钮
+     */
+    const logoutItem = sideDrawer.querySelector('#side-logout-item');
+    if (logoutItem) {
+      logoutItem.addEventListener('click', async () => {
+        closeDrawer();
+        const ok = await confirmDialog('退出登录', '确定要退出登录吗？');
+        if (!ok) return;
+        try {
+          await post('/user/logout');
+        } catch {
+          // api.js already toasts error；即使服务端失败也不影响本地清理
+        }
+        logout();
+        toast('已退出');
+        window.location.hash = '#/home';
       });
     }
 
-    // My notes
-    const notesList = contentEl.querySelector('#my-notes-list');
-    loadMyNotes(notesList);
-
-    /** 【登出功能的实现】前后端配合双保险
-     *  - 先调 POST /user/logout（api.js 自动带 authorization 头），删除服务端 Redis 登录态
-     *  - 无论服务端接口成败，均执行本地清理：logout() 清 token + 清 user
-     *  - toast "已退出" → 跳 #/home
-     *  - 设计意图：服务端失效登出态 + 本地清理双保险，确保即使后端接口异常也不会残留登录状态
-     */
-    contentEl.querySelector('#logout-btn').addEventListener('click', async () => {
-      try {
-        await post('/user/logout');
-      } catch {
-        // api.js already toasts error；即使服务端失败也不影响本地清理
-      }
-      logout();
-      toast('已退出');
-      window.location.hash = '#/home';
+    // 侧边栏菜单项点击 → 跳转 + 关闭（排除退出登录项，已单独处理）
+    sideDrawer.querySelectorAll('.side-drawer-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const hash = item.dataset.hash;
+        if (hash) window.location.hash = hash;
+        closeDrawer();
+      });
     });
+
+    /** 【我的资产入口的实现】资产入口三按钮点击 → 跳转对应 hash
+     * 实现细节：
+     * - 订单管理 → #/orders、我的钱包 → #/wallet、积分记录 → #/points
+     * - 点击跳转无需登录保护（目标页面各自处理）
+     */
+    contentEl.querySelectorAll('.profile-assets-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const hash = item.dataset.hash;
+        if (hash) window.location.hash = hash;
+      });
+    });
+
+    /** 【我的资产入口的实现】统计行点击 → 关注/粉丝列表页（未登录跳登录）
+     * 实现细节：
+     * - followee（关注）→ data-type="following" → #/user/{meId}/follows?type=following
+     * - fans（粉丝）→ data-type="fans" → #/user/{meId}/follows?type=fans
+     * - 获赞不可点击
+     */
+    contentEl.querySelectorAll('.user-stat-item[data-type]').forEach(item => {
+      item.addEventListener('click', () => {
+        const type = item.dataset.type;
+        if (!isLoggedIn()) {
+          window.location.hash = '#/login?redirect=' + encodeURIComponent('user/' + meId + '/follows?type=' + type);
+          return;
+        }
+        window.location.hash = '#/user/' + meId + '/follows?type=' + type;
+      });
+    });
+
+    /** 【个人中心的实现】调用可复用 tab 渲染函数（与 user.js 共用单一实现）
+     * 实现细节：
+     * - container = #profile-tab-area（tab 栏 + 内容全在此容器内渲染）
+     * - userId = meId（自己的 ID）
+     * - 无预加载游记数据（tab 内自行 GET /note/of/user 拉取）
+     * - 内部自动处理足迹 Leaflet 地图初始化与 tab 切换清理
+     */
+    renderUserTabs(contentEl.querySelector('#profile-tab-area'), meId, contentEl);
 
   } catch {
     contentEl.innerHTML = '<div class="empty-state"><p>加载失败</p></div>';
   }
+
+  /** 【个人中心的实现】cleanup：页面销毁时移除 body 上的侧边栏 DOM
+   * 实现细节：
+   * - router.js render 函数在每次页面切换前调用 currentCleanup() 清理上一页资源
+   * - 返回的 cleanup 函数移除 .side-mask 和 .side-drawer（挂载在 body 上），防止 DOM 残留
+   */
+  return () => {
+    const mask = document.getElementById('side-mask');
+    const drawer = document.getElementById('side-drawer');
+    if (mask) mask.remove();
+    if (drawer) drawer.remove();
+  };
 }
 
-async function loadMyNotes(container) {
-  showLoading(container);
-  try {
-    const data = await get('/note/of/me?current=1');
-    const list = Array.isArray(data) ? data : (data && data.records ? data.records : []);
-
-    if (!list.length) {
-      showEmpty(container, '还没有发布过游记');
-      return;
-    }
-
-    container.innerHTML = list.map(note => {
-      const img = note.images ? note.images.split(',')[0] : '';
-      return `
-        <div class="feed-item feed-note-card my-note-item" data-id="${note.id}">
-          ${img ? '<div class="note-img"><img src="' + imgUrl(img) + '" alt="" onerror="imgError(event)"/></div>' : ''}
-          <div class="note-body">
-            <div class="note-title">${note.title}</div>
-            <div class="note-footer">
-              <span>${note.liked || 0} 赞</span>
-            </div>
-          </div>
-          <button class="my-note-delete" data-id="${note.id}" title="删除">×</button>
-        </div>`;
-    }).join('');
-
-    container.querySelectorAll('.feed-note-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        // 点击删除按钮时不跳转详情
-        if (e.target.closest('.my-note-delete')) return;
-        window.location.hash = '#/note/' + card.dataset.id;
-      });
-    });
-
-    /** 【游记删除的实现】我的游记列表删除按钮
-     * - 每条游记右上角显示 × 删除按钮（class .my-note-delete）
-     * - 点击确认 → DELETE /note/{id} → 成功 toast + 移除卡片 DOM
-     * - 失败由 api.js 统一 toast errorMsg，卡片不移除
-     */
-    container.querySelectorAll('.my-note-delete').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const noteId = btn.dataset.id;
-        if (!confirm('确认删除该游记？')) return;
-        try {
-          await del('/note/' + noteId);
-          toast('删除成功');
-          const card = btn.closest('.feed-note-card');
-          if (card) card.remove();
-        } catch {
-          // api.js 已 toast errorMsg
-        }
-      });
-    });
-  } catch {
-    showEmpty(container, '加载失败');
-  }
-}
-
-/** 【签到功能的实现】渲染本月签到日历
+/** 【签到功能的实现】渲染紧凑签到点阵（替代完整月历网格）
  * 实现细节：
- * - 用 JS Date 计算当月天数（daysInMonth）与星期对齐（firstDayOfWeek: 0=周日）
- * - 已签到日期（signedDays 整数数组，如 [1,3,5]）高亮主题色背景（--primary-light）
- * - 今天日期描边高亮（box-shadow inset），如果是已签到日则满背景色
- * - 7 列网格（日一二三四五六），1 号之前的空白格用 .empty 占位
- * - 数据失败时隐藏日历容器 display:none，不阻塞页面（静默降级）
+ * - 紧凑签到条：一行显示本月 1 号到今天的圆点（每个小圆点 6~8px）
+ * - 已签到的日期（signedDays 整数数组，如 [1,3,5]）→ 主题色实心圆点（.sign-dot.signed）
+ * - 未签到的日期 → 浅灰空心圆点（.sign-dot 默认 border-only）
+ * - 今天日期 → 主题色描边（.sign-dot.today，已签则实心+描边）
+ * - 横向 flex-wrap 排列，大幅缩小版面（对比原来的 7 列月历网格）
+ * - 数据失败时隐藏容器 display:none，不阻塞页面（静默降级）
+ * - 接口调用与数据不变：POST /user/sign、GET /user/sign/count、GET /user/sign/list
  */
-function renderSignCalendar(container, signedDays) {
+function renderSignDots(container, signedDays) {
   if (!container) return;
   try {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based，1 月=0
     const today = now.getDate();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay(); // 0=周日
-
     const signedSet = new Set((signedDays || []).map(Number));
 
-    let html = '<div class="sign-calendar"><div class="calendar-weekdays">';
-    const weekLabels = ['日', '一', '二', '三', '四', '五', '六'];
-    weekLabels.forEach(l => { html += '<span>' + l + '</span>'; });
-    html += '</div><div class="calendar-grid">';
-
-    // 填充 1 号之前的空白格（星期对齐）
-    for (let i = 0; i < firstDay; i++) {
-      html += '<div class="calendar-day empty"></div>';
-    }
-
-    // 渲染每一天：已签到 .signed、今天 .today
-    for (let d = 1; d <= daysInMonth; d++) {
+    // 构建本月 1 号到今天的圆点行
+    let html = '<div class="sign-dots">';
+    for (let d = 1; d <= today; d++) {
       const cls = [];
-      if (d === today) cls.push('today');
       if (signedSet.has(d)) cls.push('signed');
-      html += '<div class="calendar-day' + (cls.length ? ' ' + cls.join(' ') : '') + '">' + d + '</div>';
+      if (d === today) cls.push('today');
+      html += '<span class="sign-dot' + (cls.length ? ' ' + cls.join(' ') : '') + '" title="' + d + '日"></span>';
     }
-
-    html += '</div></div>';
+    html += '</div>';
     container.innerHTML = html;
     container.style.display = '';
   } catch {
-    // 日历渲染失败不阻塞页面
+    // 点阵渲染失败不阻塞页面
     container.style.display = 'none';
   }
 }

@@ -10,8 +10,8 @@ import { isLoggedIn, getUser } from '../store.js';
  * - 表单字段：昵称（≤20字非空）、简介、城市、性别（radio 男=0 女=1）、生日（date yyyy-MM-dd）
  * - 头像更换：点击当前头像 → 选文件 → POST /upload/user（FormData "file"）→ 返回相对路径 → 更新预览
  * - 背景图更换：点击当前背景预览格 → 选文件 → POST /upload/user → 返回相对路径 → 更新预览
- * - 隐私开关：followVisible（关注列表可见）、fansVisible（粉丝列表可见），toggle 切换 true/false
- * - 保存：PUT /user/info {nickName,icon,bgImage,introduce,city,gender,birthday,followVisible,fansVisible}
+ * - 隐私开关已抽离到 #/privacy 独立页（侧边栏 → 隐私设置），编辑资料不再包含隐私设置区块
+ * - 保存：PUT /user/info {nickName,icon,bgImage,introduce,city,gender,birthday}
  *   仅传有值的字段；成功 toast + 跳回 #/user/{自己id}；失败 api.js 自动 toast errorMsg
  * - 上传模式参考 note-edit.js：FormData + post('/upload/user', formData)，不加 Content-Type
  * - imgUrl 处理上传返回的相对路径（如 user/d1/d2/x.jpg）→ 拼 /imgs/ 前缀 ✓
@@ -121,27 +121,6 @@ export async function renderUserEdit(container) {
           <label>生日</label>
           <input type="date" id="edit-birthday" value="${info.birthday || ''}"/>
         </div>
-        <!-- 隐私开关 -->
-        <div class="form-group">
-          <label>隐私设置</label>
-          <div class="privacy-toggles">
-            <div class="privacy-toggle-item">
-              <span>关注列表可见</span>
-              <label class="toggle-switch">
-                <!-- 【用户主页编辑的实现】隐私开关回显：后端返回 Integer(0/1) 或 Boolean，双重判断兼容；0/false=不可见 -->
-                <input type="checkbox" id="toggle-follow-visible" ${info.followVisible === 1 || info.followVisible === true ? 'checked' : ''}/>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="privacy-toggle-item">
-              <span>粉丝列表可见</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-fans-visible" ${info.fansVisible === 1 || info.fansVisible === true ? 'checked' : ''}/>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
         <!-- 保存 -->
         <button class="btn btn-primary btn-block mt-16" id="edit-info-submit">保存</button>
       </div>
@@ -200,13 +179,13 @@ export async function renderUserEdit(container) {
     });
 
     /** 【编辑资料页的实现】保存按钮逻辑
-     * - 收集表单字段 + 隐私开关状态
+     * - 收集表单字段（昵称/简介/城市/性别/生日/头像/背景）
      * - 前端校验：昵称非空且 ≤20 字
      * - 构建 body，仅传有值的字段（后端按非空更新）
+     * - 隐私设置已抽离到 #/privacy 独立页，编辑资料不再传 followVisible/fansVisible
      * - PUT /user/info → 成功 toast"保存成功" + 跳 #/user/{自己id} → 失败 api.js 自动 toast
      * - 【用户主页编辑的实现】字段类型转换：
      *   gender radio value 是字符串 "0"/"1"，需 parseInt 转 Integer
-     *   followVisible/fansVisible checkbox.checked 是 Boolean，后端 UserEditDTO 用 Integer(0/1)，需显式转换 ? 1 : 0
      */
     const submitBtn = root.querySelector('#edit-info-submit');
     submitBtn.addEventListener('click', async () => {
@@ -215,9 +194,6 @@ export async function renderUserEdit(container) {
       const city = root.querySelector('#edit-city').value.trim();
       const genderRadio = root.querySelector('input[name="gender"]:checked');
       const birthday = root.querySelector('#edit-birthday').value;
-      // 隐私开关：checkbox.checked 是 Boolean，转为 Integer 0/1 匹配后端 UserEditDTO
-      const followVisible = root.querySelector('#toggle-follow-visible').checked ? 1 : 0;
-      const fansVisible = root.querySelector('#toggle-fans-visible').checked ? 1 : 0;
 
       // 前端校验：昵称非空且 ≤20 字
       if (!nick) {
@@ -239,8 +215,6 @@ export async function renderUserEdit(container) {
       // genderRadio.value 是字符串 "0"/"1"，parseInt 转 Integer 后发送
       if (genderRadio) body.gender = parseInt(genderRadio.value);
       if (birthday) body.birthday = birthday;
-      body.followVisible = followVisible;
-      body.fansVisible = fansVisible;
 
       submitBtn.disabled = true;
       submitBtn.textContent = '保存中...';
