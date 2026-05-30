@@ -1,0 +1,29 @@
+# AGENTS.md
+## 项目概述
+`TravelPlus` 是一个旅游服务平台后端示例，核心能力覆盖用户登录、景点检索、游记互动与门票秒杀下单。
+## 开发命令
+- 安装依赖：`mvn clean compile`
+- 本地启动：`mvn spring-boot:run`
+- 构建打包：`mvn clean package -DskipTests`
+- 运行测试：`mvn test`
+## 运行环境
+- JDK 24 + Maven 3.9.x + Spring Boot 3.5.9
+- MySQL 8.0（Docker 容器 travelplus-mysql，端口 3307，root/123456，库名 travelplus）
+- Redis（主从+3 哨兵集群：redis-master 6380 / redis-slave 6381 + 哨兵 26379/26380/26381，统一密码 123456；配置见 docker/redis-sentinel/docker-compose.yml。注：6379（company-agent-redis）为其他项目 Redis，TravelPlus 仅曾以它作迁移源，现已完全脱离）
+- Kafka（Docker 容器 travelplus-kafka，端口 9092，秒杀链路生产端使用）
+## 关键目录
+- `src/main/java/com/travelplus/controller/` - API 入口层
+- `src/main/java/com/travelplus/service/` - 业务接口与实现
+- `src/main/java/com/travelplus/mapper/` - 数据访问层
+- `src/main/resources/` - 配置、SQL 与 Lua 脚本
+- `src/test/java/com/travelplus/` - 测试代码
+## 边界约束
+- 仅依据代码已存在事实编写技术文档，不臆造路径、命令、接口。
+- 业务规则与历史经验优先写入 `manual/`，由团队持续维护。
+- 秒杀链路涉及 Redis Lua 与异步消费，改动时需同时验证 Redis 与数据库一致性。
+## AI 上下文
+详细规则见 `.cursor/rules/ai-readme/RULE.mdc`：
+- 架构：`.cursor/rules/ai-readme/generated/技术架构.mdc`
+- 流程：`.cursor/rules/ai-readme/generated/核心流程.mdc`
+- 业务（人工维护）：`.cursor/rules/ai-readme/manual/业务知识.mdc`
+- 踩坑（人工维护）：`.cursor/rules/ai-readme/manual/历史经验.mdc`
