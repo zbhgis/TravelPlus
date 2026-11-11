@@ -8,7 +8,7 @@
  *     → page-header（返回+标题"秒杀券"）
  *     → 未使用/已核销两个 tab（复用 .fav-tabs 风格）
  *     → tab 切换分别请求 GET /ticket-order/list?current=1&status=2（未使用=已支付）和 ?status=3（已核销）
- *     → 券卡片：票名 + 完整订单号 + 金额 + 购买/支付时间 + 状态徽标
+ *     → 券卡片（车票造型）：主券（票名+券号 NO.+购买/支付时间）+ 撕票虚线 + 副券（金额+状态+票码入口），已核销票根置灰
  *     → 点击券卡 → 弹层显示条形码（JsBarcode CDN canvas 渲染 + CSS 降级）+ 完整订单详情
  *     → 空态：每个 tab 独立显示无券提示
  *     → 返回按钮：history.back()
@@ -65,28 +65,30 @@ export async function renderCoupons(container) {
     }
     let html = '';
     list.forEach(item => {
+      /* 车票造型：左侧主券（票名/券号/时间）+ 撕票虚线 + 右侧副券（金额/状态/票码入口） */
+      const used = Number(item.status) === 3;
       const payTimeHtml = item.payTime
-        ? `<div class="coupon-card-time">支付时间：${formatDate(item.payTime)}</div>`
+        ? `<div class="coupon-ticket-meta">支付 ${formatDate(item.payTime)}</div>`
         : '';
       html += `
-        <div class="coupon-card" data-order-id="${item.id}">
-          <div class="coupon-card-left">
-            <div class="coupon-card-name">${item.ticketName || '门票'}</div>
-            <div class="coupon-card-id">订单号：${item.id}</div>
-            <div class="coupon-card-time">金额：¥${fenToYuan(item.ticketPrice)}</div>
-            <div class="coupon-card-time">购买时间：${formatDate(item.createTime)}</div>
+        <div class="coupon-ticket${used ? ' used' : ''}" data-order-id="${item.id}">
+          <div class="coupon-ticket-main">
+            <div class="coupon-ticket-name">${item.ticketName || '门票'}</div>
+            <div class="coupon-ticket-no">NO.${item.id}</div>
+            <div class="coupon-ticket-meta">购买 ${formatDate(item.createTime)}</div>
             ${payTimeHtml}
           </div>
-          <div class="coupon-card-right">
-            <div class="coupon-card-status">${item.statusText || ''}</div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+          <div class="coupon-ticket-stub">
+            <div class="coupon-ticket-price">¥${fenToYuan(item.ticketPrice)}</div>
+            <div class="coupon-ticket-status">${item.statusText || ''}</div>
+            <div class="coupon-ticket-cta">票码 ›</div>
           </div>
         </div>`;
     });
     contentEl.innerHTML = html;
 
     // 绑定券卡片点击 → 显示条形码弹层（按索引回传完整 item）
-    contentEl.querySelectorAll('.coupon-card').forEach((card, i) => {
+    contentEl.querySelectorAll('.coupon-ticket').forEach((card, i) => {
       card.addEventListener('click', () => {
         showBarcodeModal(list[i]);
       });

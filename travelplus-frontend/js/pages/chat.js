@@ -1,6 +1,7 @@
 /**
  * 【私信功能的实现】#/chat/:peerId 聊天页渲染模块
- * 职责：聊天 UI（我右气泡/对方左气泡）、历史消息加载、发送消息、互关状态提示、滚动到底部
+ * 职责：聊天 UI（我右气泡/对方左气泡）、历史消息加载、发送消息、互关状态提示、滚动到底部、
+ *       输入体验（点输入栏聚焦唤起键盘 + 表情面板光标处插入 + 聚焦滚入可视区防键盘遮挡）
  * 依赖：api.js (get/post)、ui.js (formatDate/toast/imgUrl)、store.js (getUser)
  * 核心链路：
  *   renderChat(container, params)
@@ -62,9 +63,11 @@ export async function renderChat(container, params) {
         <div class="chat-messages" id="chat-messages">
           ${messages.length === 0 ? '<div class="empty-state"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><p>还没有消息，打个招呼吧</p></div>' : ''}
         </div>
-        <div class="chat-input-bar">
+        <div class="chat-input-bar" id="chat-input-bar">
+          <button class="chat-emoji-btn" id="chat-emoji-btn" aria-label="表情">😊</button>
           <input type="text" id="chat-input" placeholder="输入消息..."/>
           <button class="btn btn-primary btn-sm" id="chat-send">发送</button>
+          <div class="chat-emoji-panel" id="chat-emoji-panel"></div>
         </div>
       </div>
     `;
@@ -75,6 +78,65 @@ export async function renderChat(container, params) {
 
     // 返回按钮
     root.querySelector('#chat-back').addEventListener('click', () => window.history.back());
+
+    /**
+     * 【私信输入体验的实现】唤起键盘的保障
+     * - 点击输入栏任意空白处（input 与发送按钮之间的间隙）→ 聚焦输入框唤起键盘
+     * - 聚焦后延迟把输入栏滚进可视区（真实手机键盘弹起会压缩视口，防输入框被遮挡）
+     * - 失焦时回弹页顶（iOS 键盘收起后页面可能停在中间位置）；若焦点仍在表情面板/按钮则不回弹
+     */
+    const inputBar = root.querySelector('#chat-input-bar');
+    const emojiBtn = root.querySelector('#chat-emoji-btn');
+    const emojiPanel = root.querySelector('#chat-emoji-panel');
+
+    inputBar.addEventListener('click', (e) => {
+      if (e.target === inputBar) {
+        chatInput.focus();
+      }
+    });
+    chatInput.addEventListener('focus', () => {
+      setTimeout(() => {
+        if (chatInput.isConnected) chatInput.scrollIntoView({ block: 'nearest' });
+      }, 350);
+    });
+    chatInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        const ae = document.activeElement;
+        if (ae && (ae === emojiBtn || ae === chatInput || (ae.closest && ae.closest('.chat-emoji-panel')))) return;
+        window.scrollTo(0, 0);
+      }, 120);
+    });
+
+    /**
+     * 【私信输入体验的实现】表情面板：常用表情网格，点选在光标处插入
+     * - 😊 按钮切换面板显隐（打开时聚焦输入框，保持键盘不收起）
+     * - 点选表情：在 selectionStart/End 处插入并移动光标到表情后，重新聚焦输入框
+     * - 点击消息区空白处收起面板
+     */
+    const EMOJIS = ['😀', '😄', '😅', '😂', '🤣', '😊', '😍', '😘', '😉', '😜', '🤔', '😐', '😴', '😭', '😡', '🥳',
+      '👍', '👌', '🙏', '💪', '👏', '🎉', '❤️', '💔', '🌹', '🍀', '☀️', '🌙', '✈️', '🧳', '📷', '🗺️'];
+    emojiPanel.innerHTML = EMOJIS.map(e => '<button class="chat-emoji-item" data-emoji="' + e + '">' + e + '</button>').join('');
+
+    emojiBtn.addEventListener('click', () => {
+      emojiPanel.classList.toggle('show');
+      // 面板打开时保持输入框焦点，避免键盘收起
+      chatInput.focus();
+    });
+    emojiPanel.addEventListener('click', (e) => {
+      const item = e.target.closest('.chat-emoji-item');
+      if (!item) return;
+      const emoji = item.dataset.emoji;
+      // 光标处插入（无选区时插到末尾）
+      const start = chatInput.selectionStart == null ? chatInput.value.length : chatInput.selectionStart;
+      const end = chatInput.selectionEnd == null ? chatInput.value.length : chatInput.selectionEnd;
+      chatInput.value = chatInput.value.slice(0, start) + emoji + chatInput.value.slice(end);
+      const pos = start + emoji.length;
+      chatInput.setSelectionRange(pos, pos);
+      chatInput.focus(); // 保持键盘唤起
+    });
+    chatMessages.addEventListener('click', () => {
+      emojiPanel.classList.remove('show');
+    });
 
     /**
      * 【私信功能的实现】渲染历史消息气泡

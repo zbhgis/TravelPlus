@@ -417,7 +417,8 @@ export async function renderAttraction(container, params) {
     if (tickets && tickets.length) {
       ticketContainer.innerHTML = tickets.map(t => {
         const isSeckill = t.beginTime && t.endTime;
-        const timeStr = isSeckill ? (t.beginTime + ' ~ ' + t.endTime) : '';
+        /* 秒杀时间段格式化：后端返回 ISO（2026-08-01T00:00:00），转 "YYYY-MM-DD HH:mm:ss" 展示 */
+        const timeStr = isSeckill ? (formatDate(t.beginTime) + ' ~ ' + formatDate(t.endTime)) : '';
         return `
           <div class="ticket-card">
             <div class="ticket-info">

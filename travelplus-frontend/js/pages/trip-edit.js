@@ -71,22 +71,19 @@ export async function renderTripEdit(container) {
       const dayNum = i + 1;
       html += `
         <div class="day-section" data-day="${dayNum}">
-          <div class="day-header">第 ${dayNum} 天</div>
-          <div class="form-group">
-            <label>当日主题</label>
-            <input type="text" class="day-theme" placeholder="如：西湖一日游" maxlength="30"/>
+          <div class="day-header">
+            <span class="trip-detail-day-num">第 ${dayNum} 天</span>
+            <input type="text" class="day-theme" placeholder="当日主题，如：湖滨漫步" maxlength="30"/>
           </div>
-          <div class="form-group">
-            <label>添加景点安排</label>
-            <div class="day-attraction-picker">
-              <select class="day-attraction-select" data-day="${dayNum}">
-                <option value="">选择景点...</option>
-                ${attractions.map(a => '<option value="' + a.id + '">' + (a.name || '景点' + a.id) + '</option>').join('')}
-              </select>
-              <button class="btn btn-sm btn-primary day-add-btn" data-day="${dayNum}">+ 添加</button>
-            </div>
-            <div class="day-items" data-day="${dayNum}"></div>
+          <div class="day-attraction-picker">
+            <select class="day-attraction-select" data-day="${dayNum}">
+              <option value="">选择景点...</option>
+              ${attractions.map(a => '<option value="' + a.id + '">' + (a.name || '景点' + a.id) + '</option>').join('')}
+            </select>
+            <button class="btn btn-sm btn-primary day-add-btn" data-day="${dayNum}">+ 添加</button>
           </div>
+          <div class="day-items" data-day="${dayNum}"></div>
+          <div class="day-empty-hint">尚无景点安排，从上方选择景点添加</div>
         </div>
       `;
     }
@@ -194,30 +191,32 @@ export async function renderTripEdit(container) {
     }
   }
 
-  // 渲染表单 HTML
+  // 渲染表单 HTML（基础信息收进一张白卡，与每日行程 day-section 卡片风格统一）
   let formHtml = `
     <div class="page-content trip-edit-form">
-      <div class="form-group">
-        <label>计划标题 <span style="color:var(--danger)">*</span></label>
-        <input type="text" id="trip-title" placeholder="如：杭州三日游" maxlength="50"/>
-      </div>
-      <div class="form-group">
-        <label>目的地 <span style="color:var(--danger)">*</span></label>
-        <input type="text" id="trip-destination" placeholder="如：杭州" maxlength="30"/>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label>开始日期 <span style="color:var(--danger)">*</span></label>
-          <input type="date" id="trip-start"/>
+      <div class="trip-edit-base">
+        <div class="form-group">
+          <label>计划标题 <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="trip-title" placeholder="如：杭州三日游" maxlength="50"/>
         </div>
-        <div class="form-group" style="flex:1">
-          <label>结束日期 <span style="color:var(--danger)">*</span></label>
-          <input type="date" id="trip-end"/>
+        <div class="form-group">
+          <label>目的地 <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="trip-destination" placeholder="如：杭州" maxlength="30"/>
         </div>
-      </div>
-      <div class="form-group">
-        <label>天数（自动计算或手动修改）</label>
-        <input type="number" id="trip-days" value="1" min="1" max="30"/>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label>开始日期 <span style="color:var(--danger)">*</span></label>
+            <input type="date" id="trip-start"/>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>结束日期 <span style="color:var(--danger)">*</span></label>
+            <input type="date" id="trip-end"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>天数（自动计算或手动修改）</label>
+          <input type="number" id="trip-days" value="1" min="1" max="30"/>
+        </div>
       </div>
 
       <div class="section-title">每日行程安排</div>

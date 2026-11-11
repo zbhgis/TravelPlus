@@ -49,7 +49,8 @@ body::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:2px}
 .feed-note-card:active{transform:scale(0.985);transition:transform .15s}
 .buddy-card:active{background:var(--bg);transition:background .15s}
 a{color:var(--primary);text-decoration:none}
-img{max-width:100%;display:block}
+img{max-width:100%;display:block;-webkit-touch-callout:default}
+/* 【手机端体验的实现】图片恢复长按保存/识别（body 的 -webkit-touch-callout:none 会连图片一并禁掉，这里单独放开） */
 button{border:none;background:none;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 input,textarea{font:inherit;outline:none;border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px 12px;width:100%;background:var(--surface);transition:border-color .2s}
 input:focus,textarea:focus{border-color:var(--primary)}
@@ -63,6 +64,30 @@ textarea{resize:vertical;min-height:80px}
   padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 16px);
   min-height: 100dvh;
   background: var(--bg);
+}
+/* 【手机端体验的实现】页面进入动画：路由切换时新内容轻量上浮淡入（180ms）
+ * - innerHTML 替换产生的新元素天然重播动画；尊重系统"减弱动态效果"设置 */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.app-container > * {
+  animation: pageIn 0.18s ease-out;
+}
+/* 【侧边菜单的实现】抽屉/遮罩不参与页面进入动画：
+   pageIn 动画的 transform 会覆盖 .side-drawer 的 translateX(-100%) 隐藏态，
+   导致进入个人主页瞬间抽屉在左侧闪现/跳动。 */
+.app-container > .side-drawer,
+.app-container > .side-mask {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-container > * { animation: none; }
+}
+
+/* 【手机端体验的实现】全屏页（tabbar 隐藏）：底部只保留安全区，去掉 56px tabbar 占位灰条 */
+.app-container.no-tabbar {
+  padding-bottom: var(--safe-bottom);
 }
 
 /* === Global Search Bar (tab 页置顶) === */
@@ -226,7 +251,11 @@ textarea{resize:vertical;min-height:80px}
 .page-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  /* 手机端体验：iOS 独立窗口/刘海屏下头部避开状态栏（浏览器内 env 为 0，无影响） */
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-bottom: 12px;
+  padding-left: 16px;
+  padding-right: 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -344,6 +373,35 @@ textarea{resize:vertical;min-height:80px}
   background: var(--primary-light);
   color: var(--primary);
   font-weight: 500;
+}
+/* 【景点分类 tab 的实现】城市模式类型条：横向滚动 pill（可滑动查看 11 个分类）
+ * 【UI 统一性的实现】左右 16px 内缩与相邻内容（频道 tab/城市选择条/景点卡片）对齐，
+ * 避免 pill 滚动时超出卡片右边界、视觉上比其他内容块宽 */
+.city-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 16px;
+  padding: 10px 0;
+  background: var(--bg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.city-type-tabs::-webkit-scrollbar { display: none; }
+.city-type-tabs .tab-item {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.city-type-tabs .tab-item.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 /* === Search bar === */
@@ -554,17 +612,197 @@ textarea{resize:vertical;min-height:80px}
   font-size: 15px;
 }
 
+/* === 【签到功能的实现】个人主页签到卡：月份标题+连签天数 / 最近7天签到条+按钮 === */
 .sign-card {
   background: var(--surface);
   margin: 12px 16px;
-  padding: 16px;
+  padding: 14px 16px;
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.sign-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 12px;
+  cursor: pointer;
 }
-.sign-card .sign-info { font-size: 14px; }
-.sign-card .sign-days { color: var(--primary); font-weight: 600; }
+.sign-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* 头部右侧：连签天数 + 展开箭头（展开时 180° 旋转） */
+.sign-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sign-streak {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sign-streak b {
+  color: var(--primary);
+  font-weight: 600;
+  padding: 0 1px;
+}
+/* 「月历 ▾」展开按钮：胶囊描边样式，让展开入口一眼可见 */
+.sign-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sign-card.expanded .sign-toggle {
+  background: var(--primary-light);
+  border-color: transparent;
+  color: var(--primary);
+}
+.sign-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* 最近 7 天签到条：日期 chip 均分整行 */
+.sign-strip-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 5px;
+}
+.sign-day {
+  flex: 1;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-hint);
+  border: 1.5px solid var(--border);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+/* 已签：主题色实心白字 */
+.sign-day.signed {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 500;
+}
+/* 今天未签：主题色描边引导 */
+.sign-day.today:not(.signed) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+/* 今天已签：实心 + 浅色光环 */
+.sign-day.signed.today {
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+/* === 签到卡展开态：本月整月日历（支持月份切换） === */
+.sign-calendar {
+  display: none;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.sign-card.expanded .sign-calendar {
+  display: block;
+}
+/* 月份导航行：‹ 年月 › */
+.sign-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sign-cal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sign-cal-arrow {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sign-cal-arrow:active:not(.disabled) {
+  background: var(--border-light);
+}
+.sign-cal-arrow.disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+/* 按月加载过渡态 */
+.sign-cal-loading {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-hint);
+  padding: 22px 0;
+}
+/* 星期表头 + 日期网格：周一至周日 7 列 */
+.sign-cal-week,
+.sign-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 6px;
+}
+.sign-cal-w {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-hint);
+  padding-bottom: 4px;
+}
+.sign-cal-cell {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+/* 已签日期：主题色实心白字 */
+.sign-cal-cell.signed {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 500;
+}
+/* 今天：主题色描边 */
+.sign-cal-cell.today {
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+  color: var(--primary);
+}
+/* 今天已签：实心 + 浅色光环 */
+.sign-cal-cell.signed.today {
+  box-shadow: 0 0 0 2px var(--primary-light);
+  color: #fff;
+}
+/* 未来日期：置灰降权（不可签） */
+.sign-cal-cell.future {
+  color: var(--text-hint);
+  opacity: 0.55;
+}
 
 /* === Note detail === */
 .detail-header { padding: 16px; background: var(--surface); }
@@ -868,9 +1106,12 @@ textarea{resize:vertical;min-height:80px}
 
 /* === Register page === */
 .register-page {
-  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 24px 40px;
   background: var(--surface);
-  min-height: calc(100dvh - 50px);
+  min-height: calc(100dvh - var(--safe-bottom));
 }
 .register-form {
   display: flex;
@@ -884,6 +1125,17 @@ textarea{resize:vertical;min-height:80px}
 .edit-form { padding: 16px; }
 .edit-form .form-group { margin-bottom: 14px; }
 .edit-form label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
+/* 手机端体验：字段分组卡片（内容/设置/图片三组，与 trip-edit 表单卡语言统一） */
+.edit-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.edit-card .form-group:last-child {
+  margin-bottom: 0;
+}
 .image-upload-list {
   display: flex;
   flex-wrap: wrap;
@@ -910,16 +1162,28 @@ textarea{resize:vertical;min-height:80px}
   font-size: 12px;
   line-height: 1;
 }
+/* 添加图片按钮：虚线框 + 相机图标 + 文案（触达面积大、意图明确） */
 .image-upload-add {
   width: 80px; height: 80px;
   border: 1.5px dashed var(--border);
   border-radius: var(--radius-sm);
+  background: var(--bg);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   color: var(--text-hint);
-  font-size: 28px;
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.image-upload-add span {
+  font-size: 10px;
+  line-height: 1;
+}
+.image-upload-add:active {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 /* === Follow/Feed note card === */
@@ -1096,48 +1360,6 @@ img[src=""], img:not([src]) { opacity: 0; }
   font-weight: 500;
 }
 
-/* === 【签到功能的实现】紧凑签到点阵（替代完整月历网格） === */
-/* 点阵容器：横向 flex-wrap 排列本月 1 号到今天的圆点 */
-.sign-dots-wrap {
-  margin: 0 16px 8px;
-}
-.sign-dots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-/* 单个签到圆点：8px 小圆，未签=浅灰空心，已签=主题色实心，今天=描边 */
-.sign-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1.5px solid #e0e0e0;
-  background: transparent;
-  flex-shrink: 0;
-  cursor: default;
-}
-/* 已签到：主题色实心 */
-.sign-dot.signed {
-  background: var(--primary);
-  border-color: var(--primary);
-}
-/* 今天：主题色描边 + 稍大 */
-.sign-dot.today {
-  border-color: var(--primary);
-  border-width: 2px;
-  width: 10px;
-  height: 10px;
-}
-/* 今天且已签到：实心 + 描边保留 */
-.sign-dot.signed.today {
-  background: var(--primary);
-  border-color: var(--primary-dark);
-}
-
 /* === Note Delete Button === */
 .note-delete-btn {
   color: var(--danger) !important;
@@ -1256,15 +1478,19 @@ img[src=""], img:not([src]) { opacity: 0; }
   background: var(--bg);
 }
 /* 遮罩：全屏半透明黑色背景，默认隐藏，点击关闭抽屉 */
+/* 遮罩：与 city-sheet-mask/barcode-mask 同构（常驻 DOM + opacity 切换，修复 display 切换模式下遮罩不渲染的问题） */
 .side-mask {
   position: fixed;
   inset: 0;
-  z-index: 200;
-  background: rgba(0,0,0,0);
-  transition: background 0.25s;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
 }
 .side-mask.show {
-  background: rgba(0,0,0,0.45);
+  opacity: 1;
+  pointer-events: auto;
 }
 /* 抽屉侧边栏：固定左侧，transform translateX 从左侧滑入/滑出 */
 .side-drawer {
@@ -1274,7 +1500,7 @@ img[src=""], img:not([src]) { opacity: 0; }
   bottom: 0;
   width: 260px;
   max-width: 80vw;
-  z-index: 210;
+  z-index: 1210;
   background: var(--surface);
   box-shadow: 2px 0 16px rgba(0,0,0,0.15);
   transform: translateX(-100%);
@@ -1739,7 +1965,8 @@ img[src=""], img:not([src]) { opacity: 0; }
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--tabbar-height) - var(--safe-bottom));
+  /* 手机端体验：tabbar 已隐藏（no-tabbar），高度只扣底部安全区——聊天区满屏到底 */
+  height: calc(100dvh - var(--safe-bottom));
   background: var(--bg);
 }
 /* 消息列表区：flex-1 填充剩余空间，可滚动 */
@@ -1797,8 +2024,9 @@ img[src=""], img:not([src]) { opacity: 0; }
   0%, 80%, 100% { opacity: 0.2; }
   40% { opacity: 1; }
 }
-/* 输入栏：固定在底部 */
+/* 输入栏：relative 承载表情面板绝对定位（chat.js 私信页 + support.js 客服页共用） */
 .chat-input-bar {
+  position: relative;
   display: flex;
   gap: 10px;
   padding: 10px 16px;
@@ -1806,13 +2034,61 @@ img[src=""], img:not([src]) { opacity: 0; }
   border-top: 1px solid var(--border);
   align-items: center;
 }
+/* 表情按钮：唤起表情面板 */
+.chat-emoji-btn {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 4px 2px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chat-emoji-btn:active {
+  transform: scale(0.92);
+  transition: transform 0.1s;
+}
+/* 表情面板：吸附输入栏上方，8 列网格，默认隐藏 */
+.chat-emoji-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 60;
+  display: none;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+  padding: 10px 12px;
+  max-height: 208px;
+  overflow-y: auto;
+}
+.chat-emoji-panel.show {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px 4px;
+}
+/* 单个表情格：点选插入输入框 */
+.chat-emoji-item {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-size: 22px;
+  line-height: 1.2;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.chat-emoji-item:active {
+  background: var(--bg);
+}
 .chat-input-bar input {
   flex: 1;
   background: var(--bg);
   border: none;
   border-radius: 20px;
   padding: 8px 16px;
-  font-size: 14px;
+  /* 16px：iOS Safari 聚焦时 font-size<16px 会触发页面自动缩放，干扰键盘体验 */
+  font-size: 16px;
 }
 
 /* === 【弹窗组件的实现】自定义确认对话框 === */
@@ -2345,32 +2621,569 @@ img[src=""], img:not([src]) { opacity: 0; }
   }
 }
 
-/* === 【旅行功能的实现】旅行页 — 地图容器 === */
-/* 地图区：高 300px，圆角，Leaflet 内部创建 DOM */
+/* === 【城市选择器的实现】城市选择入口 + 底部抽屉（替代原城市 chip 标签行） === */
+/* 入口条：定位图钉 + 选中城市 chips（全部展开可换行）+ 展开箭头 */
+.city-picker-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 16px 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  color: var(--primary);
+  transition: background 0.15s;
+}
+.city-picker-bar:active {
+  background: var(--bg);
+}
+/* chips 区：flex 换行，所有选中城市完整可见（用户明确要求"选了哪些都要展开"） */
+.city-picker-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.city-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+/* chip 上的 × 移除按钮：小圆钮，触达区放大约 26px */
+.city-picker-chip-x {
+  width: 18px;
+  height: 18px;
+  margin: -2px -2px -2px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.city-picker-chip-x:active {
+  background: var(--primary);
+  color: #fff;
+}
+.city-picker-arrow {
+  font-size: 10px;
+  color: var(--text-hint);
+  padding: 6px 0;
+}
+/* 底部抽屉：遮罩渐显 + 面板自底部滑入；手机端优先布局 */
+.city-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: background 0.25s;
+}
+.city-sheet-mask.show {
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+.city-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 与 app-container 同宽：手机端全宽，桌面宽屏下居中限宽，保持手机容器视觉一致 */
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.25s;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  max-height: 72vh;
+  overflow-y: auto;
+}
+.city-sheet-mask.show .city-sheet {
+  transform: translateY(0);
+}
+.city-sheet-head {
+  position: relative;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  padding-right: 32px;
+}
+.city-sheet-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-hint);
+  font-weight: 400;
+}
+/* 右上角关闭按钮：加大触达区（28px） */
+.city-sheet-close {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+/* 城市宫格：三列等宽（手机端友好，触达面积大），选中绿底白字 + 序号徽标 */
+.city-sheet-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.city-chip {
+  position: relative;
+  flex: 0 0 calc(33.33% - 6px);
+  text-align: center;
+  padding: 11px 0;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+.city-chip.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 500;
+}
+.city-chip-badge {
+  position: absolute;
+  top: -5px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary-dark);
+  color: #fff;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 抽屉底部操作行：重置（灰）+ 确定（主色），42px 高加大触达 */
+.city-sheet-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.city-sheet-btn {
+  flex: 1;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 15px;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font);
+}
+.city-sheet-btn.ghost {
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+.city-sheet-btn.primary {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* === 【旅行功能的实现】旅行页 — 高德地图容器 === */
+/* 地图区：贴边通栏 320px；高德 JS API 2.0 原生矢量底图（GCJ-02 与景点坐标同系无偏移） */
 .map-container {
   width: 100%;
-  height: 300px;
-  border-radius: var(--radius) var(--radius) 0 0;
+  height: 320px;
   overflow: hidden;
   margin: 0;
+  background: #e8ecee;
 }
-/* Leaflet 弹出层字体与主题一致 */
-.leaflet-popup-content {
-  font-family: var(--font);
+/* 悬浮层定位基准：路线模式按钮 / 路线浮条 */
+.map-wrap {
+  position: relative;
+}
+/* 自定义景点标记：主绿圆点 + 白环 + 投影（高德 Marker content） */
+.tv-pin {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(11, 92, 80, 0.45);
+}
+/* 【地图路线规划的实现】路线序号标记：主题绿实心圆 + 白色序号（覆盖 .tv-pin 尺寸样式） */
+.tv-pin.tv-pin-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--primary);
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-style: normal;
+  box-sizing: border-box;
+}
+/* 高德 InfoWindow 气泡内容：主题字色 + 详情链接 */
+.amap-pin-pop {
   font-size: 13px;
   line-height: 1.5;
   color: var(--text);
 }
-.leaflet-popup-content b {
-  font-size: 14px;
-  color: var(--text);
-}
-.leaflet-popup-content a {
+.amap-pin-pop b { font-size: 14px; }
+.amap-pin-pop a {
   display: inline-block;
   margin-top: 4px;
   color: var(--primary);
   font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
 }
+
+/* === 【地图路线规划的实现】旅行页路线模式 UI === */
+/* 路线模式开关：右上角悬浮胶囊按钮 */
+.route-mode-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 300;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(14, 159, 138, 0.35);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+.route-mode-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+/* 路线浮条：地图底部悬浮卡片（停靠点芯片 + 方式切换 + 摘要） */
+.route-bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 300;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 10px 12px;
+  backdrop-filter: blur(6px);
+}
+.route-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.route-bar-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.route-bar-hint { font-size: 11px; color: var(--text-hint); }
+.route-stops { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.route-stops:empty { display: none; }
+.route-stop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  font-size: 12px;
+  color: var(--text);
+}
+.route-stop-chip i {
+  font-style: normal;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.route-stop-x { font-weight: 400; color: var(--text-hint); padding: 0 2px; cursor: pointer; }
+.route-summary { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.route-summary:empty { display: none; }
+.route-summary b { color: var(--primary); font-size: 14px; }
+.route-legs { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
+.route-leg { font-size: 11px; color: var(--text-hint); }
+.route-error { color: var(--danger); }
+.route-planning { color: var(--text-hint); }
+.route-bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.route-mode-tabs { display: flex; gap: 6px; }
+.route-mode-tab {
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  cursor: pointer;
+}
+.route-mode-tab.active { background: var(--primary); color: #fff; font-weight: 500; }
+.route-clear { font-size: 12px; color: var(--danger); padding: 4px 8px; cursor: pointer; }
+.route-bar-tools { display: flex; align-items: center; gap: 6px; }
+/* 【图上选点的实现】选点模式激活态：橙色区分于驾车/步行 tab */
+.route-ab-tab.active { background: #FF6B35; color: #fff; }
+/* 芯片起终点角色徽章 */
+.route-role { font-style: normal; font-size: 10px; padding: 1px 4px; border-radius: 4px; color: #fff; }
+.role-start { background: var(--primary); }
+.role-end { background: #FF6B35; }
+/* 图上终点标记：橙色（覆盖序号标记的绿底） */
+.tv-pin-num.tv-pin-end { background: #FF6B35; }
+
+/* === 【我在哪的实现】定位按钮 + 蓝点呼吸标记 === */
+/* 回到我的位置：路线按钮下方圆形准星按钮 */
+.locate-btn {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  z-index: 300;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid rgba(14, 159, 138, 0.35);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.locate-btn:active { transform: scale(0.92); }
+/* 我的位置蓝点 + 外圈呼吸光环（CSS 动画模拟系统定位点） */
+.locate-dot {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1A73E8;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(26, 115, 232, 0.5);
+  box-sizing: border-box;
+}
+.locate-dot i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background: rgba(26, 115, 232, 0.25);
+  animation: locatePulse 1.6s ease-out infinite;
+}
+@keyframes locatePulse {
+  0% { transform: scale(0.4); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .locate-dot i { animation: none; opacity: 0.5; }
+}
+
+/* === 【地图路线规划的实现】行程详情「本日路线」 === */
+.trip-day-route-btn {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.trip-day-route-area { margin: 10px 12px 4px; }
+.trip-day-route-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.trip-day-route-summary b { color: var(--primary); font-size: 14px; }
+.trip-day-map { border-radius: var(--radius-sm); overflow: hidden; }
+
+/* === 【旅游AI助手的实现】AI 助手悬浮入口 + 全屏对话页 === */
+/* 悬浮球：旅行页右下角（tab 页含 tabbar，位置在 tabbar 上方） */
+.ai-fab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 14px);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0E9F8A, #0B7C6B);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(14, 159, 138, 0.4);
+  cursor: pointer;
+}
+.ai-fab:active { transform: scale(0.94); }
+/* 头部清空按钮（标题右侧） */
+.ai-clear {
+  position: absolute;
+  right: 14px;
+  font-size: 12px;
+  color: var(--text-hint);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+}
+/* 平台数据提示条 */
+.ai-banner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 11px;
+}
+/* 助手回复正文：保留换行（攻略的结构化分段） */
+.chat-bubble .ai-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.65;
+}
+/* 流式输出中：光标闪烁 */
+.chat-bubble.streaming .ai-text::after {
+  content: '▍';
+  color: var(--primary);
+  animation: aiBlink 1s step-end infinite;
+}
+@keyframes aiBlink {
+  50% { opacity: 0; }
+}
+/* 【旅游AI助手的实现】工具执行进度行（气泡内"正在查询…"） */
+.ai-tool-status {
+  font-size: 11px;
+  color: var(--text-hint);
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+/* 【Agent架构升级】工具执行时间线（SSE v2 结构化 tool 事件：running 旋转 → ✓/✗ + 耗时） */
+.ai-steps { margin-bottom: 6px; display: flex; flex-direction: column; gap: 4px; }
+.ai-step {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-hint);
+  background: var(--bg); border-radius: var(--radius-xs); padding: 4px 8px;
+}
+.ai-step-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-step-spin {
+  width: 10px; height: 10px; flex: none;
+  border: 2px solid var(--primary); border-top-color: transparent; border-radius: 50%;
+  animation: ai-step-spin .8s linear infinite;
+}
+@keyframes ai-step-spin { to { transform: rotate(360deg); } }
+.ai-step-mark { flex: none; font-weight: 600; font-size: 11px; }
+.ai-step-mark.ok { color: var(--primary); }
+.ai-step-mark.fail { color: #E5484D; }
+.ai-step-ms { margin-left: auto; opacity: .75; flex: none; }
+/* 【Agent架构升级】规划档长文渲染：段落/列表间距（renderMd 输出 p/ul/ol/li） */
+.ai-text p { margin: 0 0 6px; }
+.ai-text p:last-child { margin-bottom: 0; }
+.ai-text ul, .ai-text ol { margin: 2px 0 8px; padding-left: 18px; }
+.ai-text li { margin: 3px 0; }
+/* 规划档分节标题（## Day 1 等） */
+.ai-text .ai-md-h { margin: 10px 0 4px; font-weight: 700; font-size: 13.5px; color: var(--text); }
+.ai-text .ai-md-h:first-child { margin-top: 0; }
+/* 【影像地图切换的实现】全站地图 卫星/标准 切换按钮（左上角：旅行页右上角已被路线模式/准星按钮占用） */
+.trip-day-map, #travel-map, #footprint-map { position: relative; }
+.map-layer-toggle {
+  position: absolute; top: 8px; left: 8px; z-index: 180;
+  padding: 3px 10px; font-size: 11px; line-height: 1.4; color: var(--text);
+  background: rgba(255, 255, 255, .92); border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: 999px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); cursor: pointer;
+}
+.map-layer-toggle.on { color: #fff; background: var(--primary); border-color: var(--primary); }
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble.streaming .ai-text::after { animation: none; }
+  .ai-step-spin { animation: none; border-top-color: var(--primary); }
+}
+/* 欢迎态 */
+.ai-welcome { text-align: center; padding: 46px 24px 0; color: var(--text-secondary); }
+.ai-welcome-icon {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 12px;
+  border-radius: 20px;
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ai-welcome-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.ai-welcome-hint { font-size: 12px; margin-top: 6px; color: var(--text-hint); line-height: 1.6; }
+/* 快捷问题 chips：输入栏上方横滚 */
+.ai-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  scrollbar-width: none;
+}
+.ai-chips::-webkit-scrollbar { display: none; }
+.ai-chip {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ai-chip:active { background: var(--primary-light); color: var(--primary); }
 
 /* 地图加载失败占位 */
 .map-fallback {
@@ -2383,18 +3196,33 @@ img[src=""], img:not([src]) { opacity: 0; }
   justify-content: center;
   color: var(--text-secondary);
   font-size: 14px;
-  border-radius: var(--radius) var(--radius) 0 0;
 }
 .map-fallback svg {
   margin-bottom: 10px;
   opacity: 0.5;
 }
 
-/* === 【旅行功能的实现】附近景点 — 横向滚动卡片区 === */
+/* === 【旅行功能的实现】附近景点 — 标题行带实时计数，横向大图卡 === */
 .nearby-section {
   background: var(--surface);
-  padding-bottom: 12px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border-light);
+}
+/* 区块头：左侧标题、右侧实时信息（结构即信息：计数随地图移动而更新） */
+.tv-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+.tv-sec-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tv-sec-meta {
+  font-size: 11px;
+  color: var(--text-hint);
 }
 .nearby-scroll {
   display: flex;
@@ -2407,64 +3235,102 @@ img[src=""], img:not([src]) { opacity: 0; }
 .nearby-scroll::-webkit-scrollbar {
   display: none;
 }
-/* 附近景点卡片：小尺寸竖排卡片（图+名+距离） */
+/* 附近景点卡片：大图占主体，距离徽章悬浮图左上（检票徽章隐喻），名字压图底部 */
 .nearby-card {
+  position: relative;
   flex-shrink: 0;
-  width: 110px;
-  background: var(--bg);
+  width: 124px;
+  height: 96px;
   border-radius: var(--radius-sm);
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.15s;
-  box-shadow: var(--shadow-sm);
+  background: var(--border);
 }
 .nearby-card:active {
   transform: scale(0.96);
 }
 .nearby-card-img {
-  width: 100%;
-  height: 70px;
-  background: var(--border);
-  overflow: hidden;
+  position: absolute;
+  inset: 0;
 }
 .nearby-card-img img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+/* 图上底部渐隐，保证白字可读 */
+.nearby-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  background: linear-gradient(to top, rgba(23, 52, 74, 0.72), rgba(23, 52, 74, 0));
 }
 .nearby-card-info {
-  padding: 6px 8px 8px;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 7px;
+  z-index: 1;
 }
 .nearby-card-name {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text);
+  color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.3;
 }
 .nearby-card-dist {
-  font-size: 11px;
-  color: var(--primary);
-  margin-top: 2px;
-  font-weight: 500;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 1px;
+}
+/* 距离徽章：图左上白底 pill */
+.nearby-card-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary-dark);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  padding: 2px 7px;
+  line-height: 1.3;
 }
 
-/* === 【旅行功能的实现】旅行计划卡片列表 === */
+/* === 【旅行功能的实现】旅行计划 — 车票样式卡片 === */
 .trip-list {
   padding: 0 16px;
 }
+/* 票面：左侧墨蓝色条（登机牌色条），右侧撕票虚线 + 小票根 */
 .trip-card {
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  padding: 14px 16px;
   margin-bottom: 10px;
   cursor: pointer;
   transition: background 0.15s;
+  overflow: hidden;
+}
+.trip-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
 }
 .trip-card:active {
   background: var(--bg);
@@ -2472,6 +3338,7 @@ img[src=""], img:not([src]) { opacity: 0; }
 .trip-card-body {
   flex: 1;
   min-width: 0;
+  padding: 13px 14px 13px 18px;
 }
 .trip-card-title {
   font-size: 15px;
@@ -2486,14 +3353,72 @@ img[src=""], img:not([src]) { opacity: 0; }
   color: var(--text-secondary);
   margin-top: 4px;
 }
+/* 撕票区：竖虚线分隔 + 上下打孔半圆（背景色圆与页面底色一致，形成缺口） */
+.trip-card-stub {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  padding: 13px 12px 13px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.trip-card-stub::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--border);
+}
+/* 打孔：上下两个半圆缺口 */
+.trip-card-stub::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg);
+  transform: translateY(-50%);
+  box-shadow: inset 0 0 0 1px var(--border-light);
+}
 .trip-card-date {
   font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.trip-card-stub-label {
+  font-size: 10px;
   color: var(--text-hint);
-  margin-top: 2px;
 }
 .trip-card-arrow {
-  flex-shrink: 0;
-  margin-left: 8px;
+  display: none;
+}
+/* 空态：罗盘 + 虚线航线的线性插画 + 一句引导 */
+.trip-empty {
+  margin: 0 16px 10px;
+  padding: 28px 16px 24px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.trip-empty svg {
+  margin-bottom: 10px;
+}
+.trip-empty-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.trip-empty-hint {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 4px;
 }
 /* 新建按钮包裹 */
 .trip-new-btn-wrap {
@@ -2510,27 +3435,74 @@ img[src=""], img:not([src]) { opacity: 0; }
   margin-bottom: 6px;
   color: var(--text);
 }
+/* 基础信息卡：标题/目的地/日期/天数收进一张白卡（与 day-section 卡片语言统一） */
+.trip-edit-base {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px 0;
+  margin-bottom: 2px;
+}
+.trip-edit-base .form-group {
+  margin-bottom: 14px;
+}
+.trip-edit-base .form-group:last-child {
+  margin-bottom: 16px;
+}
 /* 日期行：flex 双列 */
 .form-row {
   display: flex;
   gap: 12px;
 }
 
-/* 每日行程区 */
+/* 每日行程区（与行程详情 trip-detail-day 同纸感语言：装订条+主题行+虚线撕行） */
 .day-section {
+  position: relative;
+  overflow: hidden;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 14px 16px 12px 20px;
   margin-bottom: 12px;
   box-shadow: var(--shadow-sm);
 }
+/* 左侧主题色装订条 */
+.day-section::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
+}
+/* 天头部：第N天chip + 当日主题输入（同行，节省纵向空间） */
 .day-header {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border-light);
+}
+.day-header .day-theme {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+/* 空态提示：无景点安排时显示（有安排即被兄弟选择器隐藏） */
+.day-empty-hint {
+  margin-top: 8px;
+  padding: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-hint);
+  text-align: center;
+}
+.day-items:not(:empty) + .day-empty-hint {
+  display: none;
 }
 /* 景点选择器：select + 添加按钮 */
 .day-attraction-picker {
@@ -2549,16 +3521,17 @@ img[src=""], img:not([src]) { opacity: 0; }
   outline: none;
   max-width: calc(100% - 70px);
 }
-/* 已选景点条目 */
-.day-items {
-  margin-top: 8px;
+/* 已选景点条目（虚线撕行，与详情页一致） */
+.day-items:not(:empty) {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
 }
 .day-item {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px dashed var(--border);
 }
 .day-item:last-child {
   border-bottom: none;
@@ -2634,11 +3607,23 @@ img[src=""], img:not([src]) { opacity: 0; }
   margin-bottom: 16px;
 }
 .trip-detail-day {
+  position: relative;
+  overflow: hidden;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 14px 16px 14px 20px;
   margin-bottom: 10px;
   box-shadow: var(--shadow-sm);
+}
+/* 行程单纸感：左侧主题色装订条（与旅行页 trip-card 同语言） */
+.trip-detail-day::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
 }
 .trip-detail-day-header {
   display: flex;
@@ -2671,7 +3656,8 @@ img[src=""], img:not([src]) { opacity: 0; }
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border-light);
+  /* 行程单纸感：条目间虚线分隔（仿纸质行程单撕行） */
+  border-bottom: 1px dashed var(--border);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -2680,8 +3666,8 @@ img[src=""], img:not([src]) { opacity: 0; }
 }
 .trip-detail-item-row:active {
   background: var(--bg);
-  margin: 0 -16px;
-  padding-left: 16px;
+  margin: 0 -16px 0 -20px;
+  padding-left: 20px;
   padding-right: 16px;
 }
 .trip-detail-item-img {
@@ -2786,13 +3772,54 @@ img[src=""], img:not([src]) { opacity: 0; }
 
 /* --- 目的地 tab（横滑） --- */
 .dest-tabs-wrap {
+  position: relative;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--surface);
   padding: 0;
 }
+/* 【城市标签优化】右缘渐隐提示——城市较多（10+）横滑时暗示"右侧还有更多城市"，
+ * 内容未溢出时渐隐区为空白不可见，无副作用；pointer-events:none 保证不阻挡点击 */
+.dest-tabs-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), #ffffff);
+  pointer-events: none;
+}
 .dest-tabs-wrap::-webkit-scrollbar {
   display: none;
+}
+/* 【城市标签折叠的实现】折叠组：默认隐藏，"更多"chip 切换；展开后作为普通 flex 项参与排布
+ * （组内 chip 间距沿用 .dest-tab 自身 margin-right，不再加 gap 避免叠加） */
+.dest-tab-extra {
+  display: none;
+  align-items: center;
+  flex-shrink: 0; /* 防御：容器被压缩时内部 chip 不会被裁切 */
+}
+/* 防御：钉死 chip 尺寸要素（宽随内容、不换行、padding 不可覆盖），
+ * 避免任何缓存/环境差异导致选中 chip 塌缩成圆形裁字 */
+.dest-tab-extra .dest-tab,
+.dest-tabs .dest-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 6px 14px;
+  min-width: max-content;
+}
+.dest-tabs.expanded .dest-tab-extra {
+  display: flex;
+}
+/* "更多/收起"chip：与城市 chip 同款样式 + 折叠指示符 */
+.dest-tab-more {
+  color: var(--text-secondary);
+}
+.dest-more-caret {
+  font-size: 9px;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 .dest-tabs {
   display: flex;
@@ -2972,11 +3999,12 @@ img[src=""], img:not([src]) { opacity: 0; }
   border-radius: 0;
   overflow: hidden;
   z-index: 0;
+  background: #e8ecee;
 }
 
 /* --- 足迹列表 --- */
 .footprint-list {
-  padding: 0;
+  padding: 0 0 2px;
 }
 .footprint-item {
   display: flex;
@@ -3011,40 +4039,57 @@ img[src=""], img:not([src]) { opacity: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 打卡时间行：前置主绿小圆点（打卡戳记），弱化灰色箭头 */
 .footprint-item-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   color: var(--text-hint);
   margin-top: 4px;
 }
+.footprint-item-time::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
 
-/* === 【旅行概览的实现】三张小卡 — 打卡景点数/去过城市数/旅行计划数 === */
-/* 三张小卡容器：flex 横向排列，等宽 */
-.overview-cards {
+/* === 【旅行概览的实现】足迹条 — 去卡片化的单条叙事数字（打卡/城市/计划） === */
+/* 单条横向白底条：三段数字内联排布，细竖线分隔，替代三张均质统计卡 */
+.tv-footprint {
   display: flex;
-  gap: 10px;
-  padding: 0 16px 8px;
-}
-/* 单张小卡：白底圆角卡片 + 阴影 + 等分 */
-.overview-card {
-  flex: 1;
+  align-items: center;
   background: var(--surface);
+  margin: 0 16px 8px;
   border-radius: var(--radius);
-  padding: 16px 10px;
-  text-align: center;
   box-shadow: var(--shadow-sm);
+  padding: 14px 8px;
 }
-/* 数字：大号 + 主题色 + 粗体 */
-.overview-card-num {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--primary);
-  line-height: 1.2;
+.tv-footprint-item {
+  flex: 1;
+  text-align: center;
 }
-/* 标签：小号灰色 */
-.overview-card-label {
-  font-size: 12px;
+/* 数字：衬线字体（票据印刷感），墨蓝而非主题绿，与页面主色形成层次 */
+.tv-footprint-num {
+  font-family: Georgia, 'Times New Roman', 'Songti SC', SimSun, serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #17344A;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.tv-footprint-label {
+  font-size: 11px;
   color: var(--text-secondary);
-  margin-top: 4px;
+  margin-top: 3px;
+}
+/* 分隔细竖线 */
+.tv-footprint-item + .tv-footprint-item {
+  border-left: 1px solid var(--border-light);
 }
 
 /* === 【热门目的地的实现】城市卡片 — 横向滚动彩色卡片 === */
@@ -3405,6 +4450,21 @@ img[src=""], img:not([src]) { opacity: 0; }
 .order-price {
   font-weight: 600;
   color: var(--danger);
+}
+/* 金额主行：大字金额 + 支付方式（订单卡视觉主层级） */
+.order-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.order-card .order-price {
+  font-size: 17px;
+  line-height: 1.2;
+}
+.order-paytype {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 /* 时间标签 */
 .order-time {
@@ -3795,27 +4855,42 @@ img[src=""], img:not([src]) { opacity: 0; }
 .coupons-content {
   padding: 0;
 }
-/* 券卡片：白底圆角 + 左右布局 */
-.coupon-card {
+/* 券卡片：车票造型——左主券 + 撕票虚线 + 右副券（延续旅行页 trip-card 车票语言） */
+.coupon-ticket {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: stretch;
   background: var(--surface);
   margin: 0 16px 10px;
-  padding: 14px 16px;
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
   cursor: pointer;
   transition: transform .15s;
 }
-.coupon-card:active {
+.coupon-ticket:active {
   transform: scale(0.98);
 }
-.coupon-card-left {
+/* 左侧主题色票根条（已核销置灰） */
+.coupon-ticket::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
+}
+.coupon-ticket.used::before {
+  background: #c9d4d0;
+}
+/* 主券区 */
+.coupon-ticket-main {
   flex: 1;
   min-width: 0;
+  padding: 13px 12px 13px 18px;
 }
-.coupon-card-name {
+.coupon-ticket-name {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
@@ -3823,34 +4898,73 @@ img[src=""], img:not([src]) { opacity: 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 【秒杀券详情的实现】券编号：完整订单号小字号显示，过长可换行 */
-.coupon-card-id {
+/* 券号：NO.+完整订单号，等宽字体仿票面印刷 */
+.coupon-ticket-no {
   font-size: 11px;
   color: var(--text-hint);
-  margin-top: 4px;
+  margin-top: 3px;
   font-family: monospace;
+  letter-spacing: 0.3px;
   word-break: break-all;
 }
-.coupon-card-time {
-  font-size: 12px;
-  color: var(--text-hint);
-  margin-top: 2px;
+.coupon-ticket-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 3px;
 }
-.coupon-card-right {
+/* 副券：竖虚线撕票线 + 中央打孔（与 trip-card-stub 同语言） */
+.coupon-ticket-stub {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  padding: 12px 12px 12px 14px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-  margin-left: 8px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
 }
-.coupon-card-status {
-  font-size: 12px;
+.coupon-ticket-stub::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--border);
+}
+.coupon-ticket-stub::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg);
+  transform: translateY(-50%);
+  box-shadow: inset 0 0 0 1px var(--border-light);
+}
+.coupon-ticket-price {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--danger);
+  line-height: 1.2;
+}
+.coupon-ticket-status {
+  font-size: 11px;
   font-weight: 500;
-  padding: 2px 10px;
-  border-radius: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
   background: var(--primary-light);
   color: var(--primary);
+}
+.coupon-ticket.used .coupon-ticket-status {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.coupon-ticket-cta {
+  font-size: 11px;
+  color: var(--text-hint);
 }
 
 /* === 【秒杀券详情的实现】条形码弹层样式 === */
@@ -4334,7 +5448,7 @@ img[src=""], img:not([src]) { opacity: 0; }
   .section-title { font-size: 15px; padding: 12px 12px 6px; }
   .search-bar { padding: 8px 12px; gap: 8px; }
   .channel-tabs { margin: 8px 12px; }
-  .tabs-scroll { padding: 6px 8px; gap: 2px; }
+  .tabs-scroll { padding: 6px 0; gap: 2px; margin: 0 12px; }
   .tab-item { font-size: 11px; padding: 6px 2px; }
   .notes-waterfall { columns: 2; column-gap: 8px; padding: 10px 12px 14px; }
   .feed-list { padding: 0 12px; }
@@ -4365,9 +5479,8 @@ img[src=""], img:not([src]) { opacity: 0; }
   /* 【分类未读角标的实现】极小屏适配：分类圈 56px 时角标微缩，避免压住圆形图标主体 */
   .msg-cat-badge { min-width: 14px; height: 14px; font-size: 9px; border-radius: 7px; padding: 0 2px; }
   .msg-cat-badge-lg { min-width: 18px; border-radius: 9px; padding: 0 3px; }
-  .overview-cards { padding: 0 12px 6px; gap: 8px; }
-  .overview-card { padding: 12px 8px; }
-  .overview-card-num { font-size: 24px; }
+  .tv-footprint { margin: 0 12px 6px; padding: 12px 6px; }
+  .tv-footprint-num { font-size: 22px; }
   .ticket-card { padding: 12px; }
   .ticket-card .ticket-pay { font-size: 18px; }
   .trip-detail-header { padding: 12px; }
@@ -4377,7 +5490,7 @@ img[src=""], img:not([src]) { opacity: 0; }
   .dest-card { width: 100px; height: 70px; }
   .dest-card-name { font-size: 14px; }
   .nearby-scroll { padding: 0 12px; gap: 8px; }
-  .nearby-card { width: 100px; }
+  .nearby-card { width: 112px; height: 92px; }
   .search-header { padding: 8px 12px; }
   .search-hot-wrap { padding: 12px; }
   .fav-tabs { margin: 0 12px 10px; }
@@ -4424,14 +5537,33 @@ img[src=""], img:not([src]) { opacity: 0; }
   .side-drawer::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
   .chat-messages::-webkit-scrollbar { width: 4px; }
   .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
-  /* 桌面下抽屉从居中手机容器(480px)左缘展开，而非浏览器最左侧 */
+  /* 桌面下抽屉从居中手机容器(480px)左缘展开，而非浏览器最左侧；
+     高度/圆角同步对齐容器（上边距 20px + 下边距 24px），避免抽屉竖向超出手机容器 */
   .side-drawer {
     left: calc(50% - 240px);
+    top: 20px;
+    bottom: 24px;
+    border-radius: var(--radius) 0 0 var(--radius);
     transition: transform 0.25s ease, left 0.25s ease;
   }
   /* 关闭态归位到屏幕左缘之外（left:0 + translateX(-100%) 完全隐藏），保证滑出动画平滑 */
   .side-drawer:not(.show) {
     left: 0;
+  }
+  /* 【UI 统一性的实现】桌面宽屏下所有弹层蒙层统一限制在手机容器范围内（与容器同宽同位同圆角）：
+     应用在桌面以居中 480px 手机容器形态展示，蒙层不应铺满整个浏览器窗口
+     （fixed inset:0 会把容器右侧的窗口区域全部压暗，导致各弹层暗区宽度不一致） */
+  .side-mask,
+  .city-sheet-mask,
+  .recharge-mask,
+  .modal-mask,
+  .avatar-preview-mask,
+  .barcode-mask {
+    left: calc(50% - 240px);
+    width: 480px;
+    top: 20px;
+    bottom: 24px;
+    border-radius: var(--radius);
   }
 }
 
@@ -4449,3 +5581,63 @@ img[src=""], img:not([src]) { opacity: 0; }
 .channel-tab { min-height: 40px; }
 .tab-item { min-height: 36px; }
 .login-tab, .fav-tab, .user-tab { min-height: 36px; }
+
+/* === 【企业级客服Agent的实现】客服页：转人工横幅、反馈按钮、工作台 === */
+.support-header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.support-header-btn { border: none; background: none; color: var(--primary); font-size: 13px; padding: 4px 6px; cursor: pointer; }
+.support-header-btn.danger { color: var(--danger); }
+.support-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 16px 0; padding: 8px 12px; background: #fff7e6; color: #ad6800; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+.support-banner button { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 4px 10px; font-size: 12px; flex-shrink: 0; cursor: pointer; }
+.chat-bubble-hint { color: var(--text-hint); font-size: 12px; background: transparent; box-shadow: none; padding: 2px 4px; }
+.chat-feedback { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.chat-feedback button { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 1px 8px; font-size: 12px; cursor: pointer; }
+.chat-feedback button:disabled { opacity: .5; cursor: default; }
+.chat-feedback-done { font-size: 11px; color: var(--text-hint); }
+.admin-page { display: flex; flex-direction: column; height: 100%; }
+.admin-refresh { border: none; background: none; color: var(--primary); font-size: 13px; padding: 4px 6px; cursor: pointer; }
+.admin-tabs { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.admin-tabs button { border: none; background: var(--bg); color: var(--text-secondary); padding: 6px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; }
+.admin-tabs button.active { background: var(--primary); color: #fff; }
+.admin-list { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.admin-card { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-sm); padding: 12px; font-size: 13px; }
+.admin-card-top { display: flex; justify-content: space-between; align-items: center; }
+.admin-user { font-weight: 600; color: var(--text); }
+.admin-status { font-size: 11px; color: var(--primary); background: rgba(14,159,138,.1); padding: 2px 8px; border-radius: 10px; }
+.admin-reason { margin-top: 6px; color: var(--text); line-height: 1.5; }
+.admin-meta { margin-top: 4px; font-size: 11px; color: var(--text-hint); }
+.admin-actions { display: flex; gap: 8px; margin-top: 10px; }
+.admin-actions button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.admin-actions button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.admin-empty { padding: 40px 16px; text-align: center; color: var(--text-hint); font-size: 13px; }
+.admin-detail { height: 55%; display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--surface); }
+.admin-detail-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; font-weight: 600; border-bottom: 1px solid var(--border); }
+.admin-detail-head button { border: none; background: none; color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+.admin-chat { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+.admin-reply { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.admin-reply input { flex: 1; border: 1px solid var(--border); background: var(--bg); border-radius: 18px; padding: 8px 14px; font-size: 13px; outline: none; }
+.admin-finish { margin: 0 16px 12px; border: 1px solid var(--danger); color: var(--danger); background: transparent; border-radius: 16px; padding: 8px; font-size: 12px; cursor: pointer; }
+
+/* === 【企业级客服Agent的实现】客服页完善：加载更早消息、点踩原因输入 === */
+.chat-load-more { align-self: center; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); border-radius: 14px; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+.chat-load-more:disabled { opacity: .5; cursor: default; }
+.chat-feedback-reason { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg); border-radius: 12px; padding: 3px 8px; font-size: 12px; outline: none; }
+.chat-feedback-reason + button { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 3px 10px; font-size: 12px; flex-shrink: 0; cursor: pointer; }
+
+/* === 【客服流式渲染的实现】气泡内容块：修复列表被全局 reset 压扁、块级内容撑破气泡 === */
+.chat-bubble { min-width: 0; overflow-wrap: anywhere; }
+.chat-bubble-content { display: block; min-width: 0; }
+.chat-bubble-content p { margin: 0 0 6px; }
+.chat-bubble-content p:last-child { margin-bottom: 0; }
+.chat-bubble-content ul,
+.chat-bubble-content ol { margin: 6px 0; padding-left: 20px; }
+.chat-bubble-content li { margin: 2px 0; line-height: 1.6; }
+.chat-bubble-content .ai-md-h { font-weight: 600; margin: 6px 0 4px; }
+.chat-bubble-content b { font-weight: 600; }
+/* 流式正文与工具时间线：沿用旅行助手的 .ai-step 样式，限制在气泡内 */
+.chat-bubble .ai-steps { margin-bottom: 4px; }
+.chat-bubble .ai-steps:empty { display: none; }
+.chat-bubble .ai-text { word-break: break-word; }
+
+/* === 【客服Agent完善】工作台：知识库操作、差评反馈卡片 === */
+.admin-header-actions { display: flex; align-items: center; gap: 2px; }
+.admin-quote { margin-top: 8px; padding: 8px 10px; background: var(--bg); border-radius: 8px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }

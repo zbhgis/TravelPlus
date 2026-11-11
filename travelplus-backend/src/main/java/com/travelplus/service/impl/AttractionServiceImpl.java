@@ -634,24 +634,76 @@ public class AttractionServiceImpl extends ServiceImpl<AttractionMapper, Attract
     }
 
     /**
-     * 【城市推荐景点的实现】按目的地城市分页查询景点列表（按 destination 列等值筛选）
+     * 【景点按目的地查询的实现】按目的地（城市）分页查询，支持叠加类型筛选/排除筛选
      * <p>
-     * 实现细节：destination = city 等值分页（每页 SystemConstants.MAX_PAGE_SIZE 条），
-     * data=List&lt;Attraction&gt;（实体返回，返回前经 attachListInfo 批量补充动态评分/打卡数/
-     * 门票信息——avgScore 与详情同源，修复"主页卡片原 score vs 详情 avgScore 不一致"），
-     * city 为空时按全量分页（与 /attraction/of/name 空关键字行为一致）；无数据返回空列表。
-     * @param city    目的地城市（必填，空则查全部）
-     * @param current 页码，默认第1页
-     * @return 该城市景点列表
+     * 实现细节：
+     * - city 支持逗号分隔的多城市（如 "杭州,南京"，首页城市选择器最多选 5 城）
+     * - typeId 可选（首页城市模式类型 tab）：null=全部类型；非空时单城/多城两分支均叠加 eq(type_id)
+     * - excludeTypeIds 可选（首页「其他」聚合 tab）：非空时两分支均叠加 notIn(type_id)，
+     *   排除指定类型（如前 2 个常显类型），返回其余全部类型；tb_attraction.type_id 非空列，notIn 语义安全
+     * - 单城市/全部：IN 等值分页（与原 eq 版本行为一致）
+     * - 多城市：先按城分查（各取前 N 条按销量倒序），再内存轮转穿插合并（杭1南1杭2南2…），
+     *   保证每个选中城市在首屏都有露出，避免"销量高的城市霸榜、其他城市翻几页才出现"；
+     *   合并结果按 MAX_PAGE_SIZE 切片模拟分页
+     * - 返回前经 attachListInfo 批量补充动态评分/打卡数/门票信息（口径与详情一致）
+     * @param city           目的地城市（支持逗号分隔多值，可选，空则查全部）
+     * @param current        页码（从1开始）
+     * @param typeId         景点类型id（可选，null=全部类型）
+     * @param excludeTypeIds 排除的类型id集合（可选，空=不排除）
+     * @return 景点列表
      */
     @Override
-    public Result queryByDestination(String city, Integer current) {
-        Page<Attraction> page = query()
-                .eq(StrUtil.isNotBlank(city), "destination", city)
-                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 【列表动态评分与打卡统计的实现】列表统一批量补充动态评分/打卡数/门票信息
-        attachListInfo(page.getRecords());
-        return Result.ok(page.getRecords());
+    public Result queryByDestination(String city, Integer current, Integer typeId, List<Long> excludeTypeIds) {
+        // 多城市支持："杭州,南京" → IN("杭州","南京")；StrUtil.splitTrim 同时去空白与空串
+        List<String> cities = StrUtil.isBlank(city)
+                ? Collections.emptyList()
+                : StrUtil.splitTrim(city, ',');
+        int pageSize = SystemConstants.MAX_PAGE_SIZE;
+        // 【首页「其他」聚合 tab 的实现】排除类型非空时叠加 notIn(type_id)
+        boolean hasExclude = excludeTypeIds != null && !excludeTypeIds.isEmpty();
+
+        if (cities.size() <= 1) {
+            // 单城市 / 全部城市：原分页逻辑（叠加可选类型/排除过滤）
+            Page<Attraction> page = query()
+                    .in(!cities.isEmpty(), "destination", cities)
+                    .eq(typeId != null, "type_id", typeId)
+                    .notIn(hasExclude, "type_id", excludeTypeIds)
+                    .page(new Page<>(current, pageSize));
+            attachListInfo(page.getRecords());
+            return Result.ok(page.getRecords());
+        }
+
+        // 多城市：每城分查（按销量倒序，取足够切片的量），内存轮转穿插（叠加可选类型/排除过滤）
+        int fetchPerCity = Math.min(cities.size() * pageSize, 200);
+        List<List<Attraction>> perCity = new ArrayList<>(cities.size());
+        for (String c : cities) {
+            perCity.add(query()
+                    .eq("destination", c)
+                    .eq(typeId != null, "type_id", typeId)
+                    .notIn(hasExclude, "type_id", excludeTypeIds)
+                    .orderByDesc("sold")
+                    .last("limit " + fetchPerCity)
+                    .list());
+        }
+        List<Attraction> merged = new ArrayList<>();
+        int maxLen = 0;
+        for (List<Attraction> l : perCity) {
+            maxLen = Math.max(maxLen, l.size());
+        }
+        for (int i = 0; i < maxLen; i++) {
+            for (List<Attraction> l : perCity) {
+                if (i < l.size()) {
+                    merged.add(l.get(i));
+                }
+            }
+        }
+        // 按 current 切片模拟分页
+        int from = (current - 1) * pageSize;
+        List<Attraction> pageItems = from >= merged.size()
+                ? Collections.emptyList()
+                : new ArrayList<>(merged.subList(from, Math.min(from + pageSize, merged.size())));
+        attachListInfo(pageItems);
+        return Result.ok(pageItems);
     }
 
     /**

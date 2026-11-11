@@ -87,12 +87,14 @@ public interface IUserService extends IService<User> {
     Result queryUserHome(Long id);
 
     /**
-     * 【签到功能的实现】本月签到日期数组（日历渲染用）
+     * 【签到功能的实现】指定月份的签到日期数组（日历渲染用，缺省=本月）
      * <p>
-     * 实现细节：BITFIELD 读取本月位图，按位解析出已签到日期号，升序返回（未签到/无记录返回空数组）。
+     * 实现细节：BITFIELD 读取该月位图（key=sign:{userId}:yyyyMM），按位解析出已签到日期号，
+     * 升序返回（未签到/无记录/未来月份返回空数组）。month 参数供前端日历翻看历史月份。
+     * @param month 目标月份，格式 yyyyMM（如 202610）；null/空/非法格式回退本月
      * @return Result.data=List&lt;Integer&gt; 已签到日期号
      */
-    Result signList();
+    Result signList(String month);
 
     /**
      * 【钱包资产的实现】当前登录用户钱包资产聚合：余额 / 积分 / 秒杀券数量

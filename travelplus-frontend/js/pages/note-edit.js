@@ -96,48 +96,56 @@ export async function renderNoteEdit(container) {
       <h2>${titleLabel}</h2>
     </div>
     <div class="edit-form">
-      <div class="form-group">
-        <label>标题</label>
-        <input type="text" id="edit-title" placeholder="给游记起个标题" value="${prefilledNote ? (prefilledNote.title || '') : ''}"/>
-      </div>
-      <div class="form-group">
-        <label>正文</label>
-        <textarea id="edit-content" placeholder="分享你的旅行故事..." rows="6">${prefilledNote ? (prefilledNote.content || '') : ''}</textarea>
+      <!-- 手机端体验：字段分组卡片化（内容/设置/图片），与 trip-edit 表单卡片语言统一 -->
+      <div class="edit-card">
+        <div class="form-group">
+          <label>标题</label>
+          <input type="text" id="edit-title" placeholder="给游记起个标题" value="${prefilledNote ? (prefilledNote.title || '') : ''}"/>
+        </div>
+        <div class="form-group">
+          <label>正文</label>
+          <textarea id="edit-content" placeholder="分享你的旅行故事..." rows="6">${prefilledNote ? (prefilledNote.content || '') : ''}</textarea>
+        </div>
       </div>
       ${/** 【游记关联景点的实现】关联景点搜索/选择 */
-      '<div class="form-group">' +
-        '<label>关联景点（可选）</label>' +
-        '<div id="linked-attraction-area">' +
-          (selectedAttraction ? '' : '<input type="text" id="attraction-search" placeholder="搜索景点名称..." autocomplete="off"/><div class="attraction-search-dropdown" id="attraction-dropdown" style="display:none"></div>') +
+      '<div class="edit-card">' +
+        '<div class="form-group">' +
+          '<label>关联景点（可选）</label>' +
+          '<div id="linked-attraction-area">' +
+            (selectedAttraction ? '' : '<input type="text" id="attraction-search" placeholder="搜索景点名称..." autocomplete="off"/><div class="attraction-search-dropdown" id="attraction-dropdown" style="display:none"></div>') +
+          '</div>' +
         '</div>' +
-      '</div>'}
-      ${/** 【游记可见性的实现】可见性开关 toggle
+        /** 【游记可见性的实现】可见性开关 toggle
          * 实现细节：
          * - checked=公开(visible=0)，unchecked=仅自己可见(visible=1)
          * - 与隐私开关样式一致（.toggle-switch + .toggle-slider）
          * - 编辑模式回显原 visible 值
          * - 提交 body 附带 visible 字段（Integer 0/1）
          */
-      '<div class="form-group">' +
-        '<label>可见性</label>' +
-        '<div class="privacy-toggles">' +
-          '<div class="privacy-toggle-item">' +
-            '<span id="visibility-label">' + (visibleChecked ? '公开' : '仅自己可见') + '</span>' +
-            '<label class="toggle-switch">' +
-              '<input type="checkbox" id="toggle-note-visible"' + (visibleChecked ? ' checked' : '') + '/>' +
-              '<span class="toggle-slider"></span>' +
-            '</label>' +
+        '<div class="form-group">' +
+          '<label>可见性</label>' +
+          '<div class="privacy-toggles">' +
+            '<div class="privacy-toggle-item">' +
+              '<span id="visibility-label">' + (visibleChecked ? '公开' : '仅自己可见') + '</span>' +
+              '<label class="toggle-switch">' +
+                '<input type="checkbox" id="toggle-note-visible"' + (visibleChecked ? ' checked' : '') + '/>' +
+                '<span class="toggle-slider"></span>' +
+              '</label>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>'}
-      <div class="form-group">
-        <label>图片（最多9张）</label>
-        <div class="image-upload-list" id="image-list">
-          <label class="image-upload-add" id="image-add-btn">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
-          </label>
+      <div class="edit-card">
+        <div class="form-group">
+          <label>图片（最多9张）</label>
+          <div class="image-upload-list" id="image-list">
+            <label class="image-upload-add" id="image-add-btn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>添加图片</span>
+            </label>
+          </div>
+          <input type="file" id="image-input" accept="image/*" multiple hidden/>
         </div>
-        <input type="file" id="image-input" accept="image/*" multiple hidden/>
       </div>
       <button class="btn btn-primary btn-block mt-16" id="edit-submit">${submitLabel}</button>
     </div>
@@ -221,6 +229,23 @@ export async function renderNoteEdit(container) {
   const dropdown = container.querySelector('#attraction-dropdown');
   let searchTimer = null;
 
+  /**
+   * 【bug 修复】点击外部关闭下拉——单一 document 委托监听器
+   * - 原实现：初始渲染与 renderLinkedAttraction 重渲染时各 addEventListener 一次，从不移除，
+   *   反复选择/取消景点、多次进入页面会累积监听器并闭包引用已销毁 DOM（内存泄漏）
+   * - 现实现：注册一次，回调内动态查询当前 DOM 中的 #attraction-search / #attraction-dropdown
+   * - cleanup 时 removeEventListener（见函数末尾 return）
+   */
+  const outsideCloseHandler = (e) => {
+    const input = container.querySelector('#attraction-search');
+    const dd = container.querySelector('#attraction-dropdown');
+    if (!input || !dd) return;
+    if (!input.contains(e.target) && !dd.contains(e.target)) {
+      dd.style.display = 'none';
+    }
+  };
+  document.addEventListener('click', outsideCloseHandler);
+
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       clearTimeout(searchTimer);
@@ -265,15 +290,6 @@ export async function renderNoteEdit(container) {
           dropdown.style.display = 'none';
         }
       }, 300);
-    });
-  }
-
-  // 点击外部关闭下拉
-  if (searchInput) {
-    document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.style.display = 'none';
-      }
     });
   }
 
@@ -323,11 +339,6 @@ export async function renderNoteEdit(container) {
               });
             } catch { newDropdown.style.display = 'none'; }
           }, 300);
-        });
-        document.addEventListener('click', function closeDropdown(e) {
-          if (!newSearchInput.contains(e.target) && !newDropdown.contains(e.target)) {
-            newDropdown.style.display = 'none';
-          }
         });
       }
       return;
@@ -397,5 +408,9 @@ export async function renderNoteEdit(container) {
     }
   });
 
-  return () => {};
+  return () => {
+    // 清理 document 级监听器（防止页面切换后泄漏）
+    document.removeEventListener('click', outsideCloseHandler);
+    if (searchTimer) clearTimeout(searchTimer);
+  };
 }

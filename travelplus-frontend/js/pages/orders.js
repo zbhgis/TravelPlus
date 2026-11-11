@@ -84,25 +84,24 @@ export async function renderOrders(container) {
       }
 
       /** 【订单管理的实现】单个订单卡片 HTML（首屏渲染与分页追加共用，避免两处重复）
-       * - 订单号：完整 18 位字符串，.order-card-id 小字号可换行（仿秒杀券 .coupon-card-id）
+       * - 结构：票名+状态 → 金额主行（大字+支付方式）→ NO.订单号+时间（小字）
        * - 支付方式：payType 数字映射为中文文本
        */
       function orderCardHtml(item) {
-        const payTypeHtml = item.payType
-          ? '<div>支付方式：' + payTypeText(item.payType) + '</div>'
-          : '';
         return `
           <div class="order-card" data-order-id="${item.id}">
             <div class="order-card-header">
               <span class="order-title">${item.ticketName || '门票'}</span>
               <span class="order-status ${statusClass(item.status)}">${item.statusText || item.status || ''}</span>
             </div>
+            <div class="order-amount-row">
+              <span class="order-price">&yen;${fenToYuan(item.ticketPrice)}</span>
+              ${item.payType ? '<span class="order-paytype">' + payTypeText(item.payType) + '</span>' : ''}
+            </div>
             <div class="order-info">
-              <div class="order-card-id">订单号：${item.id}</div>
-              <div>金额：<span class="order-price">&yen;${fenToYuan(item.ticketPrice)}</span></div>
-              ${payTypeHtml}
-              <div class="order-time">下单时间：${formatDate(item.createTime)}</div>
-              ${item.payTime ? '<div class="order-time">支付时间：' + formatDate(item.payTime) + '</div>' : ''}
+              <div class="order-card-id">NO.${item.id}</div>
+              <div class="order-time">下单 ${formatDate(item.createTime)}</div>
+              ${item.payTime ? '<div class="order-time">支付 ' + formatDate(item.payTime) + '</div>' : ''}
             </div>
             ${Number(item.status) === 1 ? '<div class="order-pay-tip">请在 15 分钟内完成付款，超时订单自动取消并回补库存</div>' : ''}
           </div>`;

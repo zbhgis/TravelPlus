@@ -6,9 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <title>TravelPlus</title>
-<link rel="stylesheet" href="css/app.css"/>
-<!-- 【旅行功能的实现】Leaflet CDN 引入——纯前端地图方案，OSM 瓦片，零 key；若 CDN 不可达页面降级提示 -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="css/app.css?v=drawer12"/>
 </head>
 <body>
 <!-- 【全局搜索的实现】全局搜索入口置顶条——tab 页（首页/旅行/消息/我的）显示，点击跳 #/search -->
@@ -21,9 +19,13 @@
 <div id="app" class="app-container"></div>
 <div id="tabbar" class="tabbar"></div>
 <div id="toast" class="toast"></div>
-<script type="module" src="js/main.js"></script>
-<!-- 【旅行功能的实现】Leaflet JS CDN——地图初始化与交互依赖；若加载失败页面内检测 L 全局变量并提示降级 -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="js/main.js?v=exp12"></script>
+<!-- 【地图路线规划的实现】高德 JS API 2.0——底图 + 路径规划插件（AMap.Driving/AMap.Walking）
+     安全配置必须在加载脚本前声明；key/密钥为 JS API 类型（控制台 Web端(JS API) 平台） -->
+<script>
+  window._AMapSecurityConfig = { securityJsCode: 'd0bc17bddc23f8fe5d6c08a29d39e2e4' };
+</script>
+<script src="https://webapi.amap.com/maps?v=2.0&key=e734d90baf148f405672b79a0ee52e36&plugin=AMap.Driving,AMap.Walking,AMap.Transfer,AMap.Geolocation"></script>
 <!-- 【秒杀券的实现】JsBarcode CDN——条形码渲染依赖；若加载失败页面内 CSS 条纹降级显示 -->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 </body>

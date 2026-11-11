@@ -47,6 +47,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpSession;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -476,34 +477,48 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     }
 
     /**
-     * 【签到功能的实现】获取当前登录用户本月的签到日期数组
+     * 【签到功能的实现】获取当前登录用户指定月份的签到日期数组（缺省=本月）
      * <p>
      * 实现细节：
      * - key 与 sign()/signCount() 完全一致：USER_SIGN_KEY + userId + ":" + yyyyMM（如 sign:1:202608），
      *   保证写（sign 的 SETBIT）读（signList/signCount 的 BITFIELD）操作同一份位图，不产生数据分裂。
-     * - 位序（Redis 实测）：BITFIELD GET u{dayOfMonth} 0 把 Redis 的 offset0 作为结果整数的最高位（MSB），
-     *   因此结果整数的最低位（LSB）= Redis bit(dayOfMonth-1) = 今天；num 的第 i 位（从 LSB 数）对应日期 dayOfMonth - i。
-     * - 解析：遍历 i=0..dayOfMonth-1，第 i 位为 1 表示日期 dayOfMonth-i 已签到，加入结果数组；
-     *   由于 i=0 是今天（最大日期）、i 越大日期越小，收集到的是降序日期，
+     * - month 参数（可选，格式 yyyyMM，如 202610）：供前端日历翻看历史月份；位图无 TTL，历史月份数据长期可查。
+     *   缺省/非法格式回退本月；未来月份直接返回空数组（无数据可签）。
+     * - 位序（Redis 实测）：BITFIELD GET u{daysInMonth} 0 把 Redis 的 offset0 作为结果整数的最高位（MSB），
+     *   因此结果整数的最低位（LSB）= Redis bit(dayOfMonth-1) = 该月最后读取位；num 的第 i 位（从 LSB 数）
+     *   对应日期 daysInMonth - i。本月时未来日期位天然为 0，不会误报；历史月全月位均有效。
+     * - 解析：遍历 i=0..daysInMonth-1，第 i 位为 1 表示日期 daysInMonth-i 已签到，加入结果数组；
      *   最后 sort 升序返回 [5,6] 这类"已签到日期号"列表，由前端渲染日历。
-     * - 只统计到今天（dayOfMonth）为止，未来日期不存在对应位，无需特殊处理。
      */
     @Override
-    public Result signList() {
+    public Result signList(String month) {
         // 1.获取当前登录用户
         Long userId = UserHolder.getUser().getId();
-        // 2.获取日期
-        LocalDateTime now = LocalDateTime.now();
+        // 2.确定目标月份：month 缺省/非法 → 本月；合法 yyyyMM → 指定月；未来月份 → 返回空
+        YearMonth target;
+        YearMonth current = YearMonth.from(LocalDateTime.now());
+        if (StrUtil.isBlank(month)) {
+            target = current;
+        } else {
+            try {
+                target = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyyMM"));
+            } catch (Exception e) {
+                target = current;
+            }
+        }
+        if (target.isAfter(current)) {
+            return Result.ok(new ArrayList<>());
+        }
         // 3.拼接key（与 sign/signCount 一致）
-        String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        String keySuffix = target.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         String key = USER_SIGN_KEY + userId + keySuffix;
-        // 4.今天是本月的第几天
-        int dayOfMonth = now.getDayOfMonth();
-        // 5.取本月截止今天的所有签到位
+        // 4.目标月天数（本月实际只写到今天，但未来位天然为 0，统一读整月）
+        int daysInMonth = target.lengthOfMonth();
+        // 5.取该月全部签到位
         List<Long> result = stringRedisTemplate.opsForValue().bitField(
                 key,
                 BitFieldSubCommands.create()
-                        .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0)
+                        .get(BitFieldSubCommands.BitFieldType.unsigned(daysInMonth)).valueAt(0)
         );
         List<Integer> signDays = new ArrayList<>();
         if (result == null || result.isEmpty() || result.get(0) == null) {
@@ -514,13 +529,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (num == 0) {
             return Result.ok(signDays);
         }
-        // 6.逐位解析：num 第 i 位（LSB 起）=1 表示日期 dayOfMonth-i 已签到（i=0 为今天）
-        for (int i = 0; i < dayOfMonth; i++) {
+        // 6.逐位解析：num 第 i 位（LSB 起）=1 表示日期 daysInMonth-i 已签到（i=0 为该月最后一天）
+        for (int i = 0; i < daysInMonth; i++) {
             if ((num & (1L << i)) != 0) {
-                signDays.add(dayOfMonth - i);
+                signDays.add(daysInMonth - i);
             }
         }
-        // 7.i=0 是今天（最大日期）、i 越大日期越小，收集为降序，升序排序后返回
+        // 7.i=0 是最大日期、i 越大日期越小，收集为降序，升序排序后返回
         signDays.sort(Integer::compareTo);
         return Result.ok(signDays);
     }

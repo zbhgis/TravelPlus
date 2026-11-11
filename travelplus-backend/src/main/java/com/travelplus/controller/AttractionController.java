@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 【景点模块接口的实现】景点查询/管理统一入口：按 id 查详情、按类型分页（含滑动窗口限流）、按名称分页、点赞/取消点赞
  * <p>
@@ -229,14 +232,30 @@ public class AttractionController {
      * <p>
      * 实现细节：匿名可访问——GET /attraction/of/destination 与 /attraction/of/** 匹配（放行列表内），
      * 无需 token；city 必填，current 默认第 1 页，每页 MAX_PAGE_SIZE 条，data=List&lt;Attraction&gt;。
-     * @param city    目的地城市（必填）
-     * @param current 页码，默认第1页
+     * typeId 可选（首页城市模式类型筛选：null=全部类型，非空叠加 type_id 过滤）。
+     * excludeTypeIds 可选（首页「其他」聚合 tab：逗号分隔类型 id，叠加 notIn 排除这些类型）。
+     * @param city           目的地城市（必填）
+     * @param current        页码，默认第1页
+     * @param typeId         景点类型id（可选）
+     * @param excludeTypeIds 排除的类型id集合（可选，逗号分隔，如 "1,2"）
      * @return 该城市景点列表
      */
     @GetMapping("/of/destination")
     public Result queryAttractionByDestination(
             @RequestParam("city") String city,
-            @RequestParam(value = "current", defaultValue = "1") Integer current) {
-        return attractionService.queryByDestination(city, current);
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam(value = "typeId", required = false) Integer typeId,
+            @RequestParam(value = "excludeTypeIds", required = false) String excludeTypeIds) {
+        // 【首页「其他」聚合 tab 的实现】"1,2" → [1L, 2L]（空串/空白 → null，不排除任何类型）
+        List<Long> excludeList = null;
+        if (excludeTypeIds != null && !excludeTypeIds.isBlank()) {
+            excludeList = new ArrayList<>();
+            for (String s : excludeTypeIds.split(",")) {
+                if (!s.isBlank()) {
+                    excludeList.add(Long.valueOf(s.trim()));
+                }
+            }
+        }
+        return attractionService.queryByDestination(city, current, typeId, excludeList);
     }
 }

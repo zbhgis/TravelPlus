@@ -248,16 +248,18 @@ public class UserController {
     }
 
     /**
-     * 【签到功能的实现】查询当前登录用户本月的签到日期数组
+     * 【签到功能的实现】查询当前登录用户指定月份的签到日期数组（缺省=本月）
      * <p>
      * 实现细节：
      * - 需登录：/user/** 除放行路径外均被 LoginInterceptor 拦截，未登录访问返回 401。
-     * - 从与 sign()/signCount() 相同的 BitMap key（sign:{userId}:yyyyMM）读取本月截止今天的所有位，
-     *   解析出已签到的日期号数组（如 [1,5,8]）返回，见 service 实现注释。
+     * - month 参数可选（格式 yyyyMM，如 202610），供前端日历翻看历史月份；缺省/非法回退本月，
+     *   未来月份返回空数组。从与 sign()/signCount() 相同的 BitMap key（sign:{userId}:yyyyMM）
+     *   读取该月所有位，解析出已签到的日期号数组（如 [1,5,8]）返回，见 service 实现注释。
+     * @param month 目标月份（可选）
      */
     @GetMapping("/sign/list")
-    public Result signList(){
-        return userService.signList();
+    public Result signList(@RequestParam(required = false) String month){
+        return userService.signList(month);
     }
 
     /**

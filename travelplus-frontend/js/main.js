@@ -17,29 +17,35 @@
 import { register, start, navigate } from './router.js';
 import { initAvatarDelegate } from './ui.js';
 import { renderLogin } from './pages/login.js';
-import { renderHome } from './pages/home.js';
+import { renderHome } from './pages/home.js?v=type2';
 import { renderAttraction } from './pages/attraction.js';
 import { renderNoteDetail } from './pages/note-detail.js';
 import { renderNoteEdit } from './pages/note-edit.js';
-import { renderProfile } from './pages/profile.js';
+import { renderProfile } from './pages/profile.js?v=fp0712';
 import { renderRegister } from './pages/register.js';
-import { renderUser } from './pages/user.js';
 import { renderUserEdit } from './pages/user-edit.js';
 import { renderUserBrowse } from './pages/user-browse.js';
 import { renderFollows } from './pages/follows.js';
 import { renderMessages, renderMessageCategory } from './pages/messages.js';
-import { renderSupport } from './pages/support.js';
+import { renderSupport } from './pages/support.js?v=support5';
+/** 【企业级客服Agent的实现】客服工作台（人工客服）页面 */
+import { renderSupportAdmin } from './pages/support-admin.js?v=sadmin3';
 import { renderFavorites } from './pages/favorites.js';
-import { renderChat } from './pages/chat.js';
+import { renderChat } from './pages/chat.js?v=chat1';
 import { renderChats } from './pages/chats.js';
 /** 【隐私设置的实现】导入隐私设置页路由模块 */
 import { renderPrivacy } from './pages/privacy.js';
 /** 【旅行功能的实现】导入旅行相关页面模块——旅行页、创建计划页、计划详情页 */
-import { renderTravel } from './pages/travel.js';
+/* 【旅行页 UI 改版】travel.js 带版本参数——python http.server 无 Cache-Control 头，
+ * 浏览器启发式缓存会持有旧模块；改动静态资源后递增此版本号即可强制刷新 */
+import { renderTravel } from './pages/travel.js?v=amap8';
+import { renderUser } from './pages/user.js?v=amap2';
 import { renderTripEdit } from './pages/trip-edit.js';
-import { renderTripDetail } from './pages/trip-detail.js';
+import { renderTripDetail } from './pages/trip-detail.js?v=amap4';
+/** 【旅游AI助手的实现】导入旅游攻略 AI 助手页面模块（DeepSeek 流式对话） */
+import { renderAiChat } from './pages/ai-chat.js?v=ai7';
 /** 【全局搜索的实现】导入搜索页渲染模块 */
-import { renderSearch } from './pages/search.js';
+import { renderSearch } from './pages/search.js?v=srch2';
 /** 【我的资产入口的实现】导入订单管理、我的钱包、积分记录页面模块 */
 import { renderOrders } from './pages/orders.js';
 import { renderOrderDetail } from './pages/order-detail.js';
@@ -72,6 +78,10 @@ register('/messages/follows', (app) => renderMessageCategory(app, { category: 'f
 register('/messages/comments', (app) => renderMessageCategory(app, { category: 'comments' }));
 register('/messages', renderMessages);
 register('/support', renderSupport);
+/** 【企业级客服Agent的实现】客服工作台路由（管理员白名单访问） */
+register('/support-admin', renderSupportAdmin);
+/** 【旅游AI助手的实现】旅游攻略 AI 助手全屏对话页 */
+register('/ai-chat', renderAiChat);
 /** 【隐私设置的实现】注册隐私设置独立页路由 #/privacy */
 register('/privacy', renderPrivacy);
 register('/favorites', renderFavorites);
@@ -100,6 +110,12 @@ initAvatarDelegate();
 
 // 全局错误兜底：未捕获异常记录到 console（不影响用户体验）
 window.addEventListener('error', (e) => {
+  /* e.error 为 null = 资源加载失败/跨域脚本错误（无异常对象，与业务代码无关）——降级 debug，
+   * 避免误报成"Global error: null"干扰排查（如地图插件脚本按需加载的跨域错误） */
+  if (e.error == null) {
+    console.debug('Resource error (non-business):', e.message || e.type, e.target && (e.target.src || e.target.href) || '');
+    return;
+  }
   console.error('Global error:', e.error);
 });
 

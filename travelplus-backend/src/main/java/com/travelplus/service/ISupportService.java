@@ -1,30 +1,44 @@
 package com.travelplus.service;
 
 import com.travelplus.dto.Result;
+import com.travelplus.dto.UserDTO;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 【AI客服的实现】AI 智能客服服务接口。
+ * 【客服Agent升级的实现】AI 智能客服服务接口。
  * <p>
  * 实现细节：
- * - chat(message, userId)：接收用户消息（可选携带当前登录用户 id），调用大模型生成回复，
- *   失败时统一降级返回"客服暂时不可用"，不向调用方暴露底层异常。
- * - 单轮无状态对话：每次调用独立组装系统提示 + 用户消息，不维护会话历史；
- *   后续如需多轮上下文，可在 service 内按 userId 缓存历史消息列表。
+ * - chat(message, user)：接收用户消息与登录态，提交客服 Agent 异步生成回复（多轮记忆 + 知识库 RAG +
+ *   订单/积分/秒杀工具），回复写入私信消息表，前端继续轮询 /chat/list?peerId=1021。
+ * - clear(userId)：清空该用户的客服 Agent 会话记忆（界面「清空对话」时调用）。
  *
  * @author TravelPlus
  */
 public interface ISupportService {
 
     /**
-     * 【AI客服的实现】与 AI 客服对话：组装系统提示 + 用户消息 → 调用 DeepSeek → 返回回复文本
-     * <p>
-     * 实现细节：
-     * - 系统提示固定为 TravelPlus 平台智能客服人设与功能覆盖（登录/景点/游记/秒杀/订单/签到/关注等）。
-     * - 用户消息拼接原始输入；userId 非空时附加"当前用户 id"，便于客服给出针对性回答。
-     * - AI 调用任何异常（网络不通/密钥无效/模型名错误）都在 impl 内捕获降级，不抛到全局异常处理。
+     * 与 AI 客服对话（异步）：校验 + 用户消息落库 + 提交 Agent 任务，立即返回「思考中」。
+     *
      * @param message 用户输入消息（必填）
-     * @param userId  当前登录用户 id（可为 null，未登录时仅发匿名消息）
-     * @return success=true 时 data=客服回复文本；失败时 errorMsg="客服暂时不可用，请稍后再试"
+     * @param user    当前登录用户（工具身份注入与订单查询基于它）
+     * @return success=true 表示已受理；空消息返回 fail
      */
-    Result chat(String message, Long userId);
+    Result chat(String message, UserDTO user);
+
+    /**
+     * 【企业级客服的实现】流式咨询（SSE）：meta/delta/tool/replace/error/done 结构化事件。
+     *
+     * @param message 用户输入消息
+     * @param user    当前登录用户
+     * @return SSE emitter（done 事件携带落库消息 id）
+     */
+    SseEmitter chatStream(String message, UserDTO user);
+
+    /**
+     * 清空客服 Agent 会话记忆。
+     *
+     * @param userId 当前登录用户 id
+     * @return 成功返回 ok；未登录返回 fail
+     */
+    Result clear(Long userId);
 }

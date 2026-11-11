@@ -188,7 +188,8 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements IT
      *    景点已删除时保留条目、attractionName="景点已下架"、attractionImage=null
      *    （让前端仍能展示该安排，仅提示下架）。
      * 4) 返回 Map：顶层 {id,title,destination,startDate,endDate,createTime,days}，
-     *    day= {id,dayIndex,title,items}，item= {id,attractionId,attractionName,attractionImage,note,sort}。
+     *    day= {id,dayIndex,title,items}，item= {id,attractionId,attractionName,attractionImage,attractionX,attractionY,note,sort}
+     *    （attractionX/Y=景点 GCJ-02 坐标，供前端高德地图"本日路线"规划使用；景点已下架时为 null）。
      *
      * @param id 计划id
      * @return Result.data=Map{trip字段..., days:[...]}
@@ -229,9 +230,14 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements IT
                     // 景点已删除：保留条目并占位提示，避免用户计划数据凭空消失
                     itemMap.put("attractionName", "景点已下架");
                     itemMap.put("attractionImage", null);
+                    itemMap.put("attractionX", null);
+                    itemMap.put("attractionY", null);
                 } else {
                     itemMap.put("attractionName", attraction.getName());
                     itemMap.put("attractionImage", firstImage(attraction.getImages()));
+                    // 【地图路线规划的实现】附带景点坐标（GCJ-02，与高德底图同系），前端"本日路线"用
+                    itemMap.put("attractionX", attraction.getX());
+                    itemMap.put("attractionY", attraction.getY());
                 }
                 itemMap.put("note", item.getNote());
                 itemMap.put("sort", item.getSort());
@@ -249,6 +255,72 @@ public class TripServiceImpl extends ServiceImpl<TripMapper, Trip> implements IT
         result.put("createTime", trip.getCreateTime());
         result.put("days", dayMaps);
         return Result.ok(result);
+    }
+
+    /**
+     * 【旅行计划的实现】向已有计划追加景点（旅游AI助手 add_to_trip 工具专用入口）
+     * <p>
+     * 实现细节：
+     * 1) 登录态 + 计划存在 + 归属校验（仅创建者可追加）。
+     * 2) 景点存在校验（selectById 判空）。
+     * 3) dayIndex 定位日程：eq(trip_id, day_index) 查不到时取该计划当前最大 dayIndex 顺延新建
+     *    （AI 传入的 dayIndex 可超出已有天数，顺延语义比报错更友好）；dayIndex≤0 默认第 1 天。
+     * 4) sort=当天现有条目数（追加到末尾），note 空串兜底；返回实际写入的 dayIndex 供 AI 反馈。
+     *
+     * @param tripId       计划id（必填）
+     * @param dayIndex     第几天（可选，null/≤0 默认第 1 天）
+     * @param attractionId 景点id（必填）
+     * @param note         安排备注（可选）
+     * @return Result.data=实际写入的 dayIndex
+     */
+    @Override
+    public Result addItem(Long tripId, Integer dayIndex, Long attractionId, String note) {
+        UserDTO currentUser = UserHolder.getUser();
+        if (currentUser == null) {
+            return Result.fail("请先登录");
+        }
+        if (tripId == null || attractionId == null) {
+            return Result.fail("参数不完整：tripId 与 attractionId 必填");
+        }
+        Trip trip = getById(tripId);
+        if (trip == null) {
+            return Result.fail("计划不存在");
+        }
+        if (!trip.getUserId().equals(currentUser.getId())) {
+            return Result.fail("无权操作该计划");
+        }
+        if (attractionMapper.selectById(attractionId) == null) {
+            return Result.fail("景点不存在");
+        }
+        if (dayIndex == null || dayIndex < 1) {
+            dayIndex = 1;
+        }
+        // 定位目标天：不存在则顺延新建（AI 场景下超出天数按"再加一天"处理）
+        TripDay day = tripDayMapper.selectOne(new QueryWrapper<TripDay>()
+                .eq("trip_id", tripId).eq("day_index", dayIndex));
+        if (day == null) {
+            Integer maxIndex = tripDayMapper.selectList(new QueryWrapper<TripDay>().eq("trip_id", tripId))
+                    .stream()
+                    .map(TripDay::getDayIndex)
+                    .filter(java.util.Objects::nonNull)
+                    .max(Integer::compareTo)
+                    .orElse(0);
+            day = new TripDay();
+            day.setTripId(tripId);
+            day.setDayIndex(maxIndex + 1);
+            day.setTitle("");
+            tripDayMapper.insert(day);
+            dayIndex = day.getDayIndex();
+        }
+        // 追加到当天末尾：sort=现有条目数
+        Long cnt = tripDayItemMapper.selectCount(new QueryWrapper<TripDayItem>().eq("day_id", day.getId()));
+        TripDayItem item = new TripDayItem();
+        item.setDayId(day.getId());
+        item.setAttractionId(attractionId);
+        item.setNote(StrUtil.isBlank(note) ? "" : note);
+        item.setSort(cnt == null ? 0 : cnt.intValue());
+        tripDayItemMapper.insert(item);
+        return Result.ok(dayIndex);
     }
 
     /**

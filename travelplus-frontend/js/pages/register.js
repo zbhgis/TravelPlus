@@ -20,13 +20,17 @@ export function renderRegister(container) {
       <div class="header-right"></div>
     </div>
     <div class="register-page">
-      <div class="register-form">
+      <!-- 手机端体验：复用登录页品牌区/表单/底部切换链接样式，两页视觉语言一致 -->
+      <div class="login-logo">TravelPlus</div>
+      <div class="login-sub">探索世界，从这里开始</div>
+      <div class="login-form">
         <input type="tel" id="reg-phone" placeholder="请输入手机号" maxlength="11"/>
         <input type="text" id="reg-nickname" placeholder="昵称（选填）" maxlength="20"/>
         <input type="password" id="reg-password" placeholder="请设置密码（不少于6位）"/>
         <input type="password" id="reg-password2" placeholder="请再次输入密码"/>
         <button class="btn btn-primary btn-block" id="reg-submit">注册</button>
       </div>
+      <div class="login-register-link">已有账号？<a href="#/login">立即登录</a></div>
     </div>
   `;
 

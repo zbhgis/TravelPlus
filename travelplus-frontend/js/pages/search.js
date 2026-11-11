@@ -21,7 +21,7 @@
  *   - 结果为空显示空态，不显示 tab 栏（待输入时也不显示）
  */
 import { get } from '../api.js';
-import { imgUrl, imgError, scoreDisplay, fenToYuan, showLoading, showEmpty, loadMore, toast, getUrlParam, formatDate } from '../ui.js';
+import { imgUrl, imgError, scoreDisplay, fenToYuan, showLoading, showEmpty, toast, getUrlParam, formatDate } from '../ui.js';
 
 /** 【全局搜索的实现】防抖工具函数
  *  - 返回 debounced 版本函数，延迟 ms 毫秒执行
@@ -40,6 +40,23 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+/** 【全局搜索的实现】搜索页分页观察器（自循环版 loadMore）
+ * - 修复：ui.js 的 loadMore 触发一次后不再重新注册（unobserve），tab 切换重建列表后新 sentinel 无人观察，
+ *   导致"加载更多"失效；本 helper 在每次 loader 完成后重新观察当前 sentinel，直到 sentinel 被移除（无更多数据）
+ * - loader 返回 Promise；无更多数据时 loader 内部移除 sentinel → 重入时 querySelector 为空 → 自然终止
+ */
+function observeSentinel(listEl, sentinelClass, loader) {
+  const sentinel = listEl ? listEl.querySelector('.' + sentinelClass) : null;
+  if (!sentinel) return;
+  const ob = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      ob.disconnect();
+      Promise.resolve(loader()).finally(() => observeSentinel(listEl, sentinelClass, loader));
+    }
+  }, { rootMargin: '100px' });
+  ob.observe(sentinel);
 }
 
 /** 【全局搜索的实现】搜索模块级状态 */
@@ -341,7 +358,7 @@ function renderAttractionResults(container, list, keyword) {
     html += `
       <div class="attraction-card" data-id="${a.id}">
         <div class="card-img">
-          <img src="${imgUrl(img)}" alt="${escapeHtml(a.name)}" onerror="imgError(event)"/>
+          <img loading="lazy" src="${imgUrl(img)}" alt="${escapeHtml(a.name)}" onerror="imgError(event)"/>
         </div>
         <div class="card-info">
           <div class="card-name">${escapeHtml(a.name)}</div>
@@ -374,19 +391,23 @@ function renderAttractionResults(container, list, keyword) {
     listEl.appendChild(sentinel);
 
     let current = tabPages.attraction || 2;
-    loadMore(listEl, async () => {
+    observeSentinel(listEl, 'load-sentinel-search-attr', async () => {
       try {
         const data = await get('/search?keyword=' + encodeURIComponent(keyword) + '&current=' + current);
         const moreList = (data && data.attractions) ? data.attractions : [];
         if (!moreList.length) { sentinel.remove(); return; }
+        /* 防御性去重：按已渲染卡片 data-id 过滤，防重复追加 */
+        const existingIds = new Set([...listEl.querySelectorAll('.attraction-card')].map(el => el.dataset.id));
         moreList.forEach(a => {
+          if (existingIds.has(String(a.id))) return;
+          existingIds.add(String(a.id));
           const img = (a.images || a.image || '').split(',')[0];
           const el = document.createElement('div');
           el.className = 'attraction-card';
           el.dataset.id = a.id;
           el.innerHTML = `
             <div class="card-img">
-              <img src="${imgUrl(img)}" alt="${escapeHtml(a.name)}" onerror="imgError(event)"/>
+              <img loading="lazy" src="${imgUrl(img)}" alt="${escapeHtml(a.name)}" onerror="imgError(event)"/>
             </div>
             <div class="card-info">
               <div class="card-name">${escapeHtml(a.name)}</div>
@@ -422,7 +443,7 @@ function renderNoteResults(container, list, keyword) {
     html += `
       <div class="note-card" data-id="${note.id}">
         <div class="note-img">
-          <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+          <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
         </div>
         <div class="note-body">
           <div class="note-title">${escapeHtml(note.title || '')}</div>
@@ -457,19 +478,23 @@ function renderNoteResults(container, list, keyword) {
     listEl.appendChild(sentinel);
 
     let current = tabPages.note || 2;
-    loadMore(listEl, async () => {
+    observeSentinel(listEl, 'load-sentinel-search-note', async () => {
       try {
         const data = await get('/search?keyword=' + encodeURIComponent(keyword) + '&current=' + current);
         const moreList = (data && data.notes) ? data.notes : [];
         if (!moreList.length) { sentinel.remove(); return; }
+        /* 防御性去重：按已渲染卡片 data-id 过滤，防重复追加 */
+        const existingIds = new Set([...listEl.querySelectorAll('.note-card')].map(el => el.dataset.id));
         moreList.forEach(note => {
+          if (existingIds.has(String(note.id))) return;
+          existingIds.add(String(note.id));
           const img = (note.images || note.image || '').split(',')[0];
           const el = document.createElement('div');
           el.className = 'note-card';
           el.dataset.id = note.id;
           el.innerHTML = `
             <div class="note-img">
-              <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+              <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
             </div>
             <div class="note-body">
               <div class="note-title">${escapeHtml(note.title || '')}</div>
@@ -533,12 +558,16 @@ function renderUserResults(container, list, keyword) {
     listEl.appendChild(sentinel);
 
     let current = tabPages.user || 2;
-    loadMore(listEl, async () => {
+    observeSentinel(listEl, 'load-sentinel-search-user', async () => {
       try {
         const data = await get('/search?keyword=' + encodeURIComponent(keyword) + '&current=' + current);
         const moreList = (data && data.users) ? data.users : [];
         if (!moreList.length) { sentinel.remove(); return; }
+        /* 防御性去重：按已渲染条目 data-uid 过滤，防重复追加 */
+        const existingIds = new Set([...listEl.querySelectorAll('.search-user-item')].map(el => el.dataset.uid));
         moreList.forEach(u => {
+          if (existingIds.has(String(u.id))) return;
+          existingIds.add(String(u.id));
           const el = document.createElement('div');
           el.className = 'search-user-item';
           el.dataset.uid = u.id;

@@ -274,7 +274,7 @@ export async function renderNoteDetail(container, params) {
             (attrImg ? '<img class="linked-attraction-banner-img" src="' + imgUrl(attrImg) + '" alt="" onerror="imgError(event)"/>' : '') +
             '<div class="linked-attraction-banner-info">' +
               '<span class="linked-attraction-banner-label">相关景点</span>' +
-              '<span class="linked-attraction-banner-name">' + (note.attraction.name || '查看景点') + '</span>' +
+              '<span class="linked-attraction-banner-name">' + escapeHtml(note.attraction.name || '查看景点') + '</span>' +
             '</div>' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
             '</div>';
@@ -289,11 +289,11 @@ export async function renderNoteDetail(container, params) {
         ${images.length > 1 ? '<div class="carousel-dots" id="nd-dots">' + images.map((_, i) => '<div class="carousel-dot' + (i === 0 ? ' active' : '') + '"></div>').join('') + '</div>' : ''}
       </div>` : ''}
       <div class="detail-header">
-        <div class="detail-title">${note.title}</div>
+        <div class="detail-title">${escapeHtml(note.title || '')}</div>
         <div class="detail-author">
-          <img class="avatar" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${note.name || ''}"/>
+          <img class="avatar" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${escapeHtml(note.name || '')}"/>
           <div class="detail-author-info">
-            <div class="detail-author-name">${note.name || '匿名'}</div>
+            <div class="detail-author-name">${escapeHtml(note.name || '匿名')}</div>
             <div class="detail-author-time">${formatDate(note.createTime)}</div>
           </div>
           ${note.userId ? '<button class="btn btn-outline btn-sm follow-btn" data-uid="' + note.userId + '" data-followed="' + isFollowed + '">' + (isFollowed ? '已关注' : '+ 关注') + '</button>' : ''}
@@ -325,12 +325,12 @@ export async function renderNoteDetail(container, params) {
            */
         (() => { const me = getUser(); return note.userId && me && String(me.id) === String(note.userId); })() ? '<button class="action-btn note-edit-btn" id="nd-edit">编辑</button><button class="action-btn note-delete-btn" id="nd-delete">删除</button>' : ''}
       </div>
-      <div class="detail-content">${note.content || ''}</div>
+      <div class="detail-content">${escapeHtml(note.content || '')}</div>
       ${likeUsers.length > 0 ? `
       <div class="detail-section">
         <h3>点赞的人</h3>
         <div class="like-avatars">
-          ${likeUsers.map(u => '<img src="' + imgUrl(u.icon) + '" alt="' + (u.nickName || '') + '" onerror="imgError(event)" data-avatar-uid="' + (u.id || '') + '" data-avatar-icon="' + imgUrl(u.icon) + '" data-avatar-nick="' + (u.nickName || '') + '" title="' + (u.nickName || '') + '"/>').join('')}
+          ${likeUsers.map(u => '<img src="' + imgUrl(u.icon) + '" alt="' + escapeHtml(u.nickName || '') + '" onerror="imgError(event)" data-avatar-uid="' + (u.id || '') + '" data-avatar-icon="' + imgUrl(u.icon) + '" data-avatar-nick="' + escapeHtml(u.nickName || '') + '" title="' + escapeHtml(u.nickName || '') + '"/>').join('')}
         </div>
       </div>` : ''}
       <div class="detail-section">

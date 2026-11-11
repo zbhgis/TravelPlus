@@ -1,6 +1,7 @@
 import { get, put, post } from '../api.js';
 import { imgUrl, imgError, showLoading, showEmpty, toast, loadMore, formatDate, confirmDialog } from '../ui.js';
 import { isLoggedIn, getUser, logout } from '../store.js';
+import { attachLayerToggle } from '../map-layers.js';
 
 /** 【用户主页的实现】用户主页渲染（小红书式分 tab 布局）
  * 实现细节：
@@ -743,10 +744,12 @@ async function loadUserTabFootprints(container, userId, state) {
     }
 
     // 构建 HTML：地图容器 + 打卡列表
-    const leafletAvailable = typeof window.L !== 'undefined';
+    const mapReady = typeof window.AMap !== 'undefined';
     let html = '<div class="user-tab-content">';
 
-    if (leafletAvailable) {
+    if (mapReady) {
+      /* 打卡记录标题行：右侧实时计数（与旅行页 tv-sec-head 同一结构语言） */
+      html += '<div class="tv-sec-head"><span class="tv-sec-title">打卡记录</span><span class="tv-sec-meta">' + list.length + ' 处足迹</span></div>';
       html += '<div class="footprint-map-container" id="footprint-map" style="height:250px;margin:0"></div>';
     } else {
       html += '<div class="map-fallback" style="height:80px;display:flex;align-items:center;justify-content:center;color:var(--text-hint);font-size:13px;background:var(--surface)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" style="margin-right:8px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>地图加载失败</div>';
@@ -778,38 +781,44 @@ async function loadUserTabFootprints(container, userId, state) {
       });
     });
 
-    /** 【用户足迹的实现】Leaflet 地图初始化（复用 travel.js 模式）
-     * - 中心杭州（30.26, 120.15）zoom=11
-     * - 遍历打卡点为每个景点创建 L.marker + popup（名称 + 点击跳详情）
-     * - cleanup：页面销毁时 map.remove()
+    /** 【用户足迹的实现】高德地图初始化（JS API 2.0，与 travel.js 同一视觉：绿点标记）
+     * - 中心杭州（120.15, 30.26）zoom=11，有打卡点时 setFitView 自适应聚焦
+     * - 遍历打卡点为每个景点创建自定义内容标记 + 点击 InfoWindow（名称 + 查看详情）
+     * - cleanup：页面销毁时 map.destroy()
      */
-    if (leafletAvailable) {
+    if (mapReady) {
       const mapEl = container.querySelector('#footprint-map');
       if (mapEl) {
         mapEl.style.height = '250px';
-        const map = L.map(mapEl).setView([30.26, 120.15], 11);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 18
-        }).addTo(map);
+        const map = new AMap.Map(mapEl, { zoom: 11, center: [120.15, 30.26], zooms: [3, 18] });
+
+        /* 【影像地图切换的实现】全站共享图层切换组件（卫星/标准，左上角胶囊按钮） */
+        attachLayerToggle(map, mapEl);
+
+        const pinHtml = n => n ? '<span class="tv-pin tv-pin-num">' + n + '</span>' : '<span class="tv-pin"></span>';
+        const infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -12) });
 
         let hasMarker = false;
         list.forEach(item => {
           if (item.x != null && item.y != null) {
-            const marker = L.marker([item.y, item.x]).addTo(map);
-            marker.bindPopup('<b>' + (item.name || '景点') + '</b><br/><a href="#/attraction/' + item.id + '">查看详情</a>');
+            const marker = new AMap.Marker({
+              position: [item.x, item.y],
+              content: pinHtml(),
+              anchor: 'center',
+              zIndex: 30
+            });
+            marker.on('click', () => {
+              infoWindow.setContent('<div class="amap-pin-pop"><b>' + escapeHtml(item.name || '景点') + '</b><br/><a href="#/attraction/' + item.id + '">查看详情</a></div>');
+              infoWindow.open(map, [item.x, item.y]);
+            });
+            map.add(marker);
             hasMarker = true;
           }
         });
 
-        // 如果有标记，调整地图视野
+        // 如果有标记，自适应视野聚焦全部打卡点
         if (hasMarker) {
-          const group = new L.featureGroup(
-            list.filter(i => i.x != null && i.y != null).map(i => L.marker([i.y, i.x]))
-          );
-          if (group.getLayers().length > 0) {
-            map.fitBounds(group.getBounds().pad(0.1));
-          }
+          map.setFitView(null, false, [30, 30, 30, 30]);
         }
 
         // 保存 map 到 container 以便 cleanup
@@ -862,10 +871,10 @@ async function loadUserTabFootprints(container, userId, state) {
   }
 }
 
-/** 【用户足迹的实现】页面销毁时清理 Leaflet 地图实例 */
+/** 【用户足迹的实现】页面销毁时销毁高德地图实例 */
 export function cleanupFootprintMap(container) {
   if (container && container._footprintMap) {
-    container._footprintMap.remove();
+    container._footprintMap.destroy();
     container._footprintMap = null;
   }
 }
@@ -877,7 +886,7 @@ export function cleanupFootprintMap(container) {
  * - root：父级根元素引用（用于事件托管/清理映射，默认同 container）
  * - notesPreloaded：可选预加载游记数据（Promise.all 中预取的首屏数据，为空时 tab 内自行拉取）
  * - profile.js 与 user.js 共用此实现（单一数据源），他人主页无签到/操作组由调用侧控制
- * - 足迹地图 Leaflet 初始化/清理逻辑封装在内，切换 tab 时自动清理（map.remove()）
+ * - 足迹地图高德初始化/清理逻辑封装在内，切换 tab 时自动清理（map.destroy()）
  * - 收藏/赞过子 tab 切换与分页游标均在 tabState 中管理（引用传递，loader 内部修改）
  */
 export function renderUserTabs(container, userId, root, notesPreloaded) {
@@ -947,10 +956,10 @@ function renderUserNotes(container, list) {
     html += `
       <div class="note-card" data-id="${note.id}">
         <div class="note-img">
-          <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+          <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
         </div>
         <div class="note-body">
-          <div class="note-title">${note.title}</div>
+          <div class="note-title">${escapeHtml(note.title || '')}</div>
           <div class="note-footer">
             <div class="note-likes">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="${note.isLike ? '#f87171' : 'none'}" stroke="${note.isLike ? '#f87171' : '#999'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -982,10 +991,10 @@ function appendUserNotes(container, list, sentinel) {
     el.dataset.id = note.id;
     el.innerHTML = `
       <div class="note-img">
-        <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+        <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
       </div>
       <div class="note-body">
-        <div class="note-title">${note.title}</div>
+        <div class="note-title">${escapeHtml(note.title || '')}</div>
         <div class="note-footer">
           <div class="note-likes">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="${note.isLike ? '#f87171' : 'none'}" stroke="${note.isLike ? '#f87171' : '#999'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>

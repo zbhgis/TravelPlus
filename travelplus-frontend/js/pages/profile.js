@@ -10,17 +10,18 @@
  *     → 统计行：关注(followee)/粉丝(fans)/获赞(likedCount) —— 点击跳 #/user/{me}/follows
  *     → 我的资产入口：统计行下方三按钮横向栏（订单管理→#/orders、我的钱包→#/wallet、积分记录→#/points），图标圆角底 + 文字，与现有卡片风格一致
  *     → 侧边栏：左上角☰菜单按钮 → 点击弹出左侧抽屉（编辑资料/浏览记录/客服），点击遮罩或项关闭
- *     → 签到：紧凑点阵（已连续签到N天 + 签到按钮 + 本月圆点行）—— 今天已签到则按钮显示"已签到"禁用态
+ *     → 签到：签到卡（月份标题 + 已连签N天 + 最近7天签到条 + 签到按钮）—— 今天已签到则按钮显示"已签到"禁用态
  *     → tab 区：renderUserTabs(container, meId) → 游记/评论/收藏/赞过/足迹（与 user.js 共用单一实现）
  *     → 退出登录：POST /user/logout 双保险 + logout() + toast + #/home
  * 子功能：
- *   - 签到：POST /user/sign → 刷新天数 + 重新拉取签到列表刷新点阵；今天已签到→按钮禁用显示"已签到"
- *   - renderSignDots()：紧凑签到点阵渲染（保留不变）
+ *   - 签到：POST /user/sign → 刷新天数 + 重新拉取签到列表刷新签到条；今天已签到→按钮禁用显示"已签到"
+ *   - renderSignStrip()：最近 7 天签到条渲染
  */
 import { get, post } from '../api.js';
 import { imgUrl, imgError, toast, confirmDialog } from '../ui.js';
 import { isLoggedIn, getUser, logout } from '../store.js';
-import { renderUserTabs } from './user.js';
+/* user.js 带版本参数：与 main.js 入口引用保持一致，避免浏览器模块缓存持有旧版足迹地图 */
+import { renderUserTabs } from './user.js?v=fp0711g';
 
 export async function renderProfile(container) {
   const user = getUser();
@@ -160,12 +161,21 @@ export async function renderProfile(container) {
           <span class="profile-assets-label">积分记录</span>
         </div>
       </div>
-      <!-- 【签到功能的实现】紧凑签到条：天数胶囊 + 按钮 + 本月签到点阵 -->
-      <div class="sign-card">
-        <div class="sign-info">已连续签到 <span class="sign-days" id="sign-days">${signCount}</span> 天</div>
-        <button class="btn btn-primary btn-sm" id="sign-btn">签到</button>
+      <!-- 【签到功能的实现】签到卡：头部（月份+连签天数+展开箭头，点击展开整月日历）+ 7天条 + 签到按钮 -->
+      <div class="sign-card" id="sign-card">
+        <div class="sign-head" id="sign-head">
+          <span class="sign-title">${new Date().getMonth() + 1}月签到</span>
+          <span class="sign-head-right">
+            <span class="sign-streak">已连续签到 <b id="sign-days">${signCount}</b> 天</span>
+            <span class="sign-toggle">月历 ▾</span>
+          </span>
+        </div>
+        <div class="sign-body">
+          <div class="sign-strip-wrap" id="sign-dots-wrap"></div>
+          <button class="btn btn-primary btn-sm" id="sign-btn">签到</button>
+        </div>
+        <div class="sign-calendar" id="sign-calendar"></div>
       </div>
-      <div class="sign-dots-wrap" id="sign-dots-wrap"></div>
       <!-- 【个人中心的实现】tab 区容器：由 renderUserTabs 动态渲染（游记/评论/收藏/赞过/足迹） -->
       <div id="profile-tab-area"></div>
       <!-- 【个人中心的实现】侧边栏遮罩与抽屉：由 JS 动态创建并挂载到 document.body（见下方 createSideDrawer） -->
@@ -193,26 +203,93 @@ export async function renderProfile(container) {
         signBtn.disabled = true;
         signBtn.textContent = '已签到';
         toast('签到成功，积分+2');
-        /** 【签到功能的实现】签到后刷新点阵
-         * - 重新拉取签到列表，刷新本月签到点阵
-         * - 本地更新今天圆点高亮（即使接口失败也尝试本地更新）
+        /** 【签到功能的实现】签到后刷新签到条与日历
+         * - 重新拉取签到列表，刷新最近 7 天条
+         * - 日历已展开 → loadCal 重新拉取当前展示月（月历可能停留在历史月）
+         * - 本地更新今天高亮（即使接口失败也尝试本地更新）
          */
         try {
           const updatedDays = await get('/user/sign/list');
-          renderSignDots(contentEl.querySelector('#sign-dots-wrap'), updatedDays || []);
+          signedDays = updatedDays || [];
+          renderSignStrip(contentEl.querySelector('#sign-dots-wrap'), signedDays);
         } catch {
           // 本地更新：直接追加今天日期到已有列表
-          const merged = [...new Set([...(signedDays || []), todayDate])];
-          renderSignDots(contentEl.querySelector('#sign-dots-wrap'), merged);
+          signedDays = [...new Set([...(signedDays || []), todayDate])];
+          renderSignStrip(contentEl.querySelector('#sign-dots-wrap'), signedDays);
+        }
+        if (signCardEl.classList.contains('expanded')) {
+          loadCal(calYM);
         }
       } catch {}
     });
 
-    /** 【签到功能的实现】初始渲染签到点阵
-     * - 用已加载的 signedDays 渲染本月 1 号到今天的圆点行
-     * - 失败时 renderSignDots 内部隐藏容器
+    /** 【签到功能的实现】签到卡展开/收起整月日历（支持翻看近 12 个月）
+     * - 点击头部（月份/天数行）切换 .expanded；「月历 ▾」按钮为明显可点击入口
+     * - 每次展开重置为当前月；日历懒加载：按月请求 GET /user/sign/list?month=yyyyMM
+     * - calYM=当前展示的年月 {y, m}（m 为 1~12）；calLoading 防并发重复加载
      */
-    renderSignDots(contentEl.querySelector('#sign-dots-wrap'), signedDays || []);
+    const signCardEl = contentEl.querySelector('#sign-card');
+    const signHeadEl = contentEl.querySelector('#sign-head');
+    const calWrapEl = contentEl.querySelector('#sign-calendar');
+    let calYM = null;
+    let calLoading = false;
+
+    /** 【签到功能的实现】按月加载签到数据并渲染日历 */
+    async function loadCal(ym) {
+      if (!calWrapEl || calLoading) return;
+      calLoading = true;
+      renderSignCalendar(calWrapEl, [], ym, true);
+      try {
+        const ymStr = ym.y + String(ym.m).padStart(2, '0');
+        const days = await get('/user/sign/list?month=' + ymStr);
+        // 加载期间用户可能已切走月份，过期响应直接丢弃
+        if (!calYM || calYM.y !== ym.y || calYM.m !== ym.m) {
+          calLoading = false;
+          return;
+        }
+        renderSignCalendar(calWrapEl, days || [], ym, false);
+      } catch {
+        renderSignCalendar(calWrapEl, [], ym, false);
+        toast('签到日历加载失败');
+      }
+      calLoading = false;
+    }
+
+    /** 头部点击：展开 → 重置为当前月并加载；收起 → 仅切换态 */
+    signHeadEl.addEventListener('click', () => {
+      const open = signCardEl.classList.toggle('expanded');
+      if (open) {
+        const now = new Date();
+        calYM = { y: now.getFullYear(), m: now.getMonth() + 1 };
+        loadCal(calYM);
+      }
+    });
+
+    /** 日历导航箭头（事件委托）：‹ 上个月 / › 下个月，范围限近 12 个月至当前月 */
+    calWrapEl.addEventListener('click', (e) => {
+      const arrow = e.target.closest('.sign-cal-arrow');
+      if (!arrow || arrow.classList.contains('disabled') || calLoading) return;
+      const now = new Date();
+      const curYM = { y: now.getFullYear(), m: now.getMonth() + 1 };
+      let { y, m } = calYM;
+      if (arrow.dataset.dir === 'prev') {
+        m--;
+        if (m < 1) { m = 12; y--; }
+      } else {
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+      const diff = (curYM.y - y) * 12 + (curYM.m - m);
+      if (diff < 0 || diff > 12) return; // 越界（未来月或超 12 个月前）
+      calYM = { y, m };
+      loadCal(calYM);
+    });
+
+    /** 【签到功能的实现】初始渲染签到条
+     * - 用已加载的 signedDays 渲染最近 7 天日期条
+     * - 失败时 renderSignStrip 内部隐藏容器
+     */
+    renderSignStrip(contentEl.querySelector('#sign-dots-wrap'), signedDays || []);
 
     /** 【头像交互的实现】自己头像点击改由全局委托 initAvatarDelegate 统一处理
      * - data-avatar-uid 已加在 #profile-avatar 模板中 → 自己头像→预览弹窗（含"这是您自己"标签）
@@ -241,12 +318,12 @@ export async function renderProfile(container) {
     if (oldMask) oldMask.remove();
     if (oldDrawer) oldDrawer.remove();
 
-    // 创建遮罩并挂载到 body
+    // 创建遮罩与抽屉：挂载到页面容器（#app）末尾——与首页城市抽屉等正常渲染的遮罩同环境；
+    // 早期挂 body 的方案出现「遮罩 DOM/样式正确却不渲染」的合成异常
     const sideMask = document.createElement('div');
     sideMask.className = 'side-mask';
     sideMask.id = 'side-mask';
-    sideMask.style.display = 'none';
-    document.body.appendChild(sideMask);
+    container.appendChild(sideMask);
 
     // 创建抽屉并挂载到 body
     const sideDrawer = document.createElement('div');
@@ -271,14 +348,12 @@ export async function renderProfile(container) {
            - 退出入口统一收纳侧边栏，页尾不再有独立退出按钮 -->
       <div class="side-drawer-item side-drawer-logout" id="side-logout-item">退出登录</div>
     `;
-    document.body.appendChild(sideDrawer);
+    // 与遮罩同挂页面容器，保持同一渲染环境
+    container.appendChild(sideDrawer);
 
     const menuBtn = container.querySelector('#profile-menu-btn');
 
     function openDrawer() {
-      sideMask.style.display = 'block';
-      // 强制回流后添加 show 类触发动画
-      void sideMask.offsetWidth;
       sideMask.classList.add('show');
       sideDrawer.classList.add('show');
     }
@@ -286,12 +361,6 @@ export async function renderProfile(container) {
     function closeDrawer() {
       sideMask.classList.remove('show');
       sideDrawer.classList.remove('show');
-      // 动画结束后隐藏遮罩
-      setTimeout(() => {
-        if (!sideMask.classList.contains('show')) {
-          sideMask.style.display = 'none';
-        }
-      }, 250);
     }
 
     if (menuBtn) menuBtn.addEventListener('click', openDrawer);
@@ -331,6 +400,28 @@ export async function renderProfile(container) {
         closeDrawer();
       });
     });
+
+    /**
+     * 【企业级客服Agent的实现】管理员动态注入「客服工作台」入口
+     * 实现细节：
+     * - 请求 /support/admin/me 判断当前用户是否在 admin-user-ids 白名单；
+     * - 命中时在「客服」项后插入 #/support-admin 入口并单独绑定点击（动态节点不在上方 forEach 内）；
+     * - 非管理员/接口失败静默不显示，页面销毁（document.contains 校验）后不再注入。
+     */
+    get('/support/admin/me').then(me => {
+      if (!me || !me.admin || !document.contains(sideDrawer)) return;
+      const supportItem = sideDrawer.querySelector('[data-hash="#/support"]');
+      if (!supportItem || sideDrawer.querySelector('[data-hash="#/support-admin"]')) return;
+      const adminItem = document.createElement('div');
+      adminItem.className = 'side-drawer-item';
+      adminItem.dataset.hash = '#/support-admin';
+      adminItem.textContent = '客服工作台';
+      supportItem.after(adminItem);
+      adminItem.addEventListener('click', () => {
+        window.location.hash = '#/support-admin';
+        closeDrawer();
+      });
+    }).catch(() => { /* 未登录或无权限：不显示入口 */ });
 
     /** 【我的资产入口的实现】资产入口三按钮点击 → 跳转对应 hash
      * 实现细节：
@@ -387,36 +478,89 @@ export async function renderProfile(container) {
   };
 }
 
-/** 【签到功能的实现】渲染紧凑签到点阵（替代完整月历网格）
+/** 【签到功能的实现】渲染最近 7 天签到条（替代无标注小圆点行）
  * 实现细节：
- * - 紧凑签到条：一行显示本月 1 号到今天的圆点（每个小圆点 6~8px）
- * - 已签到的日期（signedDays 整数数组，如 [1,3,5]）→ 主题色实心圆点（.sign-dot.signed）
- * - 未签到的日期 → 浅灰空心圆点（.sign-dot 默认 border-only）
- * - 今天日期 → 主题色描边（.sign-dot.today，已签则实心+描边）
- * - 横向 flex-wrap 排列，大幅缩小版面（对比原来的 7 列月历网格）
+ * - 横向显示「今天往前 7 天」的日期号 chip（26px 圆，flex 均分），日期数字让签到状态可读
+ * - 已签到日期（signedDays 整数数组，如 [1,3,5]）→ 主题色实心白字（.sign-day.signed）
+ * - 未签到日期 → 浅灰描边（.sign-day 默认）
+ * - 今天未签 → 主题色描边引导点击；今天已签 → 实心 + 浅色光环（.sign-day.signed.today）
  * - 数据失败时隐藏容器 display:none，不阻塞页面（静默降级）
  * - 接口调用与数据不变：POST /user/sign、GET /user/sign/count、GET /user/sign/list
  */
-function renderSignDots(container, signedDays) {
+function renderSignStrip(container, signedDays) {
   if (!container) return;
   try {
     const now = new Date();
     const today = now.getDate();
     const signedSet = new Set((signedDays || []).map(Number));
 
-    // 构建本月 1 号到今天的圆点行
-    let html = '<div class="sign-dots">';
-    for (let d = 1; d <= today; d++) {
+    // 今天往前 7 天（月初不足 7 天则从 1 号起）
+    const start = Math.max(1, today - 6);
+    let html = '';
+    for (let d = start; d <= today; d++) {
       const cls = [];
       if (signedSet.has(d)) cls.push('signed');
       if (d === today) cls.push('today');
-      html += '<span class="sign-dot' + (cls.length ? ' ' + cls.join(' ') : '') + '" title="' + d + '日"></span>';
+      html += '<span class="sign-day' + (cls.length ? ' ' + cls.join(' ') : '') + '">' + d + '</span>';
     }
-    html += '</div>';
     container.innerHTML = html;
     container.style.display = '';
   } catch {
-    // 点阵渲染失败不阻塞页面
+    // 签到条渲染失败不阻塞页面
     container.style.display = 'none';
   }
+}
+
+/** 【签到功能的实现】渲染指定月份的整月签到日历（签到卡展开态，支持月切换）
+ * 实现细节：
+ * - 顶部导航行：‹ 上个月 / 「yyyy年M月」 / › 下个月；范围限近 12 个月至当前月（越界箭头置灰）
+ * - 周一至周日 7 列网格：星期表头 + 首日偏移占位 + 1 号至月末逐日格子
+ * - 已签日期 → 主题色实心白字（.sign-cal-cell.signed）
+ * - 今天（仅当展示月=当前月）→ 主题色描边（.sign-cal-cell.today，已签则实心+浅色光环）
+ * - 当前月的未来日期 → 置灰降权（.sign-cal-cell.future）；历史月整月均为过去无此态
+ * - loading=true 时仅渲染导航+星期头，网格区显示加载占位（按月请求期间的过渡态）
+ * - 数据来源：GET /user/sign/list?month=yyyyMM（后端按月读取 Redis 位图）
+ */
+function renderSignCalendar(container, signedDays, ym, loading) {
+  if (!container || !ym) return;
+  const y = ym.y;
+  const m = ym.m;
+  const now = new Date();
+  const isCurrent = y === now.getFullYear() && m === now.getMonth() + 1;
+  const today = now.getDate();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  // 周一为首列：本月 1 号的偏移量（getDay(): 周日=0 → 转周一第一列制）
+  const firstOffset = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const signedSet = new Set((signedDays || []).map(Number));
+  // 导航边界：与当前月相差的月数（0=当前月；>12 不可再往前）
+  const diff = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
+  const canPrev = diff < 12;
+  const canNext = diff > 0;
+
+  let html = '<div class="sign-cal-nav">'
+    + '<button class="sign-cal-arrow' + (canPrev ? '' : ' disabled') + '" data-dir="prev" aria-label="上一月">‹</button>'
+    + '<span class="sign-cal-title">' + y + '年' + m + '月</span>'
+    + '<button class="sign-cal-arrow' + (canNext ? '' : ' disabled') + '" data-dir="next" aria-label="下一月">›</button>'
+    + '</div>';
+  html += '<div class="sign-cal-week">'
+    + ['一', '二', '三', '四', '五', '六', '日'].map(w => '<span class="sign-cal-w">' + w + '</span>').join('')
+    + '</div>';
+  if (loading) {
+    html += '<div class="sign-cal-loading">加载中...</div>';
+    container.innerHTML = html;
+    return;
+  }
+  html += '<div class="sign-cal-grid">';
+  for (let i = 0; i < firstOffset; i++) {
+    html += '<span class="sign-cal-cell empty"></span>';
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cls = [];
+    if (signedSet.has(d)) cls.push('signed');
+    if (isCurrent && d === today) cls.push('today');
+    if (isCurrent && d > today) cls.push('future');
+    html += '<span class="sign-cal-cell' + (cls.length ? ' ' + cls.join(' ') : '') + '">' + d + '</span>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
 }

@@ -28,7 +28,11 @@ nb/.gradle/
 .playwright-mcp/
 .codegraph/
 .cursor/
-docs/
+docs/*
+# README 引用的方案文档需要入库，其余 docs 过程文档仍忽略
+!docs/客服Agent高峰并发方案.md
+!docs/客服高峰并发产品方案.md
+!docs/客服Agent部署清单.md
 logs/
 *.log
 uploads/
@@ -44,3 +48,20 @@ travelplus-backend/docs/
 
 # ---- 压测造数脚本(不入库) ----
 travelplus-backend/scripts/perf/seed_*.sql
+travelplus-backend/scripts/seed_city_attractions.sql
+travelplus-backend/scripts/seed_city_attractions_phase2.sql
+travelplus-backend/scripts/seed_city_tickets.sql
+travelplus-backend/scripts/seed_notes_batch.sql
+
+# ---- 本地静态服务脚本(不入库) ----
+travelplus-frontend/serve-dev.py
+travelplus-frontend/serve_no_cache.py
+
+# ---- 本地私有配置/密钥(不入库) ----
+application-local.yaml
+application-local.yml
+
+# ---- 会话/工具过程产物(不入库) ----
+.screenshots/
+.trae-html-share-packages/
+travelplus-backend/scripts/restore_notes.sql

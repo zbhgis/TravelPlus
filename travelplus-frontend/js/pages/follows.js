@@ -1,6 +1,16 @@
 import { get } from '../api.js';
 import { imgUrl, imgError, showLoading, showEmpty, loadMore, getUrlParam } from '../ui.js';
 
+/**
+ * 【XSS 防护】HTML 转义——用户可控内容（昵称）插入 innerHTML 前必须转义
+ * - 与 note-detail.js / chat.js 的 escapeHtml 实现一致
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 /** 【关注粉丝列表的实现】关注/粉丝列表页渲染
  * 实现细节：
  * - 路由 #/user/:id/follows?type=following|fans，params.id 为目标用户 ID
@@ -86,9 +96,9 @@ function renderFollowUsers(container, list, emptyMsg) {
 
   container.innerHTML = list.map(u => `
     <div class="follows-item" data-uid="${u.id}">
-      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${u.nickName || '用户'}"/>
+      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${escapeHtml(u.nickName || '用户')}"/>
       <div class="follows-item-info">
-        <span class="follows-item-name">${u.nickName || '用户'}</span>
+        <span class="follows-item-name">${escapeHtml(u.nickName || '用户')}</span>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
     </div>
@@ -111,9 +121,9 @@ function appendFollowUsers(container, list, sentinel) {
     el.className = 'follows-item';
     el.dataset.uid = u.id;
     el.innerHTML = `
-      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${u.nickName || '用户'}"/>
+      <img class="avatar" src="${imgUrl(u.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${u.id}" data-avatar-icon="${imgUrl(u.icon)}" data-avatar-nick="${escapeHtml(u.nickName || '用户')}"/>
       <div class="follows-item-info">
-        <span class="follows-item-name">${u.nickName || '用户'}</span>
+        <span class="follows-item-name">${escapeHtml(u.nickName || '用户')}</span>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
     `;

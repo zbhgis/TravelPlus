@@ -58,6 +58,7 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/attraction",
                         "/attraction/*",
                         "/attraction/of/**",
+                        "/ai/**",
                         "/ticket/**",
                         "/attraction-type/**",
                         "/upload/**",

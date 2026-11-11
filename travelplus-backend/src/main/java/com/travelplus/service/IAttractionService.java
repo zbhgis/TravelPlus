@@ -4,6 +4,8 @@ import com.travelplus.dto.Result;
 import com.travelplus.entity.Attraction;
 import com.baomidou.mybatisplus.spring.service.IService;
 
+import java.util.List;
+
 /**
  * 【景点服务的实现】景点服务接口：详情查询（缓存防穿透/防击穿）、点赞/取消点赞、更新（更新后删缓存）、按类型分页查询（Geo 距离排序）
  * <p>
@@ -115,11 +117,13 @@ public interface IAttractionService extends IService<Attraction> {
      * <p>
      * 实现细节：destination = city 等值分页（每页 MAX_PAGE_SIZE），data=List&lt;Attraction&gt;（Map 或实体，
      * 与 /attraction/of/type 返回结构一致）；无数据返回空列表。
-     * @param city    目的地城市（必填）
-     * @param current 页码，默认第1页
+     * @param city            目的地城市（必填，支持逗号分隔多城）
+     * @param current         页码，默认第1页
+     * @param typeId          景点类型id（可选；首页城市模式下叠加类型筛选，null=全部类型）
+     * @param excludeTypeIds  排除的类型id集合（可选；首页「其他」聚合 tab：除指定类型外的全部类型）
      * @return 该城市景点列表
      */
-    Result queryByDestination(String city, Integer current);
+    Result queryByDestination(String city, Integer current, Integer typeId, List<Long> excludeTypeIds);
 
     /**
      * 【景点按名称查询的实现】按景点名称关键字分页查询（公开，/attraction/of/name 委托入口）

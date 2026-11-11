@@ -69,4 +69,17 @@ public interface ITripService extends IService<Trip> {
      */
     Result delete(Long id);
 
+    /**
+     * 【旅行计划的实现】向已有计划追加景点（旅游AI助手 add_to_trip 工具专用入口）
+     * <p>
+     * 实现细节：归属校验（仅创建者）→ 景点存在校验 → 按 dayIndex 定位日程（不存在时
+     * 在当前最大 dayIndex 后顺延新建一天）→ sort=当天现有条目数（追加到末尾）。
+     * @param tripId       计划id（必填）
+     * @param dayIndex     第几天（可选，null/≤0 默认第 1 天；超出已有天数时顺延新建）
+     * @param attractionId 景点id（必填）
+     * @param note         安排备注（可选，空串兜底）
+     * @return Result.data=实际写入的 dayIndex
+     */
+    Result addItem(Long tripId, Integer dayIndex, Long attractionId, String note);
+
 }

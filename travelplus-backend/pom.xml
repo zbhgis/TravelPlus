@@ -114,6 +114,20 @@
 
     <build>
         <plugins>
+            <!-- 【部署安全的实现】本地私有配置不进发布包：
+                 src/main/resources/application-local.yaml 含本地 DeepSeek key，.gitignore 已阻止入库；
+                 这里再让 maven-jar-plugin 在打 jar 时排除它，避免 key 被打进发布产物。
+                 本地 mvn spring-boot:run 仍会从 target/classes 读取该文件，不影响开发。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>application-local.yaml</exclude>
+                        <exclude>application-local.yml</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

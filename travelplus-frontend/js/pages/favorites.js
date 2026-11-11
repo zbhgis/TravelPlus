@@ -15,6 +15,16 @@ import { get } from '../api.js';
 import { imgUrl, imgError, formatDate, showLoading, showEmpty } from '../ui.js';
 import { isLoggedIn } from '../store.js';
 
+/**
+ * 【XSS 防护】HTML 转义——用户可控内容（游记/景点标题）插入 innerHTML 前必须转义
+ * - 与 note-detail.js / chat.js 的 escapeHtml 实现一致
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 export async function renderFavorites(container) {
   // 登录保护
   if (!isLoggedIn()) {
@@ -77,7 +87,7 @@ export async function renderFavorites(container) {
           <div class="fav-item" data-url="${targetHash}">
             ${img ? '<img class="fav-item-thumb" src="' + imgUrl(img) + '" alt="" onerror="imgError(event)"/>' : '<div class="fav-item-thumb" style="background:var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-hint);font-size:12px">无图</div>'}
             <div class="fav-item-info">
-              <div class="fav-item-title">${item.title || '无标题'}</div>
+              <div class="fav-item-title">${escapeHtml(item.title || '无标题')}</div>
               <div class="fav-item-time">${formatDate(item.createTime)}</div>
             </div>
           </div>`;

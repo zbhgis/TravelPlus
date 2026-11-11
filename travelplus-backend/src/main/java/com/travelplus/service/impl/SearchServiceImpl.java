@@ -3,15 +3,19 @@ package com.travelplus.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.travelplus.dto.Result;
 import com.travelplus.dto.UserDTO;
 import com.travelplus.entity.Attraction;
+import com.travelplus.entity.Ticket;
 import com.travelplus.entity.TravelNote;
 import com.travelplus.entity.User;
 import com.travelplus.es.AttractionDoc;
 import com.travelplus.es.NoteDoc;
 import com.travelplus.es.UserDoc;
 import com.travelplus.mapper.AttractionMapper;
+import com.travelplus.mapper.SeckillTicketMapper;
+import com.travelplus.mapper.TicketMapper;
 import com.travelplus.mapper.TravelNoteMapper;
 import com.travelplus.mapper.UserMapper;
 import com.travelplus.service.ISearchService;
@@ -31,6 +35,8 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -79,6 +85,11 @@ public class SearchServiceImpl implements ISearchService {
     private TravelNoteMapper travelNoteMapper;
     @Resource
     private UserMapper userMapper;
+    /** 【门票信息的实现】搜索结果门票/秒杀判定用（与 AttractionServiceImpl.attachListInfo 同源） */
+    @Resource
+    private TicketMapper ticketMapper;
+    @Resource
+    private SeckillTicketMapper seckillTicketMapper;
     /** 【Elasticsearch搜索的实现】ES 操作入口（spring-data-elasticsearch 自动装配），查询异常由 catch 降级 LIKE */
     @Resource
     private ElasticsearchOperations operations;
@@ -109,16 +120,18 @@ public class SearchServiceImpl implements ISearchService {
             empty.put("users", Collections.emptyList());
             return Result.ok(empty);
         }
+        // 1.1 【分页修复的实现】解析页码（缺省/非法回退 1）——修复"每页返回同一批数据导致前端加载更多重复"的 bug
+        int page = (current == null || current < 1) ? 1 : current;
         // 2.【Elasticsearch搜索的实现】ES 优先查询；异常/开关关闭 → 降级 LIKE（保证系统可用）
         if (esEnabled) {
             try {
-                return searchByEs(keyword, current);
+                return searchByEs(keyword, page);
             } catch (Exception e) {
                 // 降级策略：ES 挂了搜索仍可用，只是慢（22 万行 LIKE 全表扫描约百毫秒级，见 es-baseline.md）
                 log.warn("【Elasticsearch搜索的实现】ES 查询失败，降级 LIKE 查询：{}", e.getMessage());
             }
         }
-        return searchByLike(keyword, current);
+        return searchByLike(keyword, page);
     }
 
     /**
@@ -139,8 +152,10 @@ public class SearchServiceImpl implements ISearchService {
     private Result searchByEs(String keyword, Integer current) {
         // 1.景点：attraction_es 上 match_phrase(name)
         // 【Elasticsearch搜索的实现】StringQuery 的 source 是"query 部分"（不含外层 {"query":...} 包裹，
-        // 否则 ES 报 parsing_exception unknown query [query]）；每类条数用 Pageable 控制（size=10）。
-        Pageable pageable = PageRequest.of(0, SystemConstants.MAX_PAGE_SIZE);
+        // 否则 ES 报 parsing_exception unknown query [query]）；条数用 Pageable 控制（size=10），
+        // page-1 作为页索引实现真分页（修复 current 被忽略导致每页同批数据的重复 bug）。
+        int page = (current == null || current < 1) ? 1 : current;
+        Pageable pageable = PageRequest.of(page - 1, SystemConstants.MAX_PAGE_SIZE);
         SearchHits<AttractionDoc> attractionHits = operations.search(
                 new StringQuery("{\"match_phrase\":{\"name\":" + esString(keyword) + "}}", pageable),
                 AttractionDoc.class, IndexCoordinates.of("attraction_es"));
@@ -156,6 +171,8 @@ public class SearchServiceImpl implements ISearchService {
             item.put("destination", doc.getDestination());
             attractionItems.add(item);
         }
+        // 【门票信息的实现】补充 hasTicket/avgPrice/hasSeckill（修复搜索卡片误显示"免费"）
+        attachTicketInfo(attractionItems);
 
         // 2.游记：note_es 上 match_phrase(title) + 可见性过滤（visible=0 OR userId=当前用户）
         Long currentUserId = UserHolder.getUser() == null ? null : UserHolder.getUser().getId();
@@ -211,11 +228,14 @@ public class SearchServiceImpl implements ISearchService {
      * @return 三类搜索结果
      */
     private Result searchByLike(String keyword, Integer current) {
+        // 0.【分页修复的实现】LIMIT offset,size 真分页（current 忽略导致的重复 bug 修复）
+        int page = (current == null || current < 1) ? 1 : current;
+        int offset = (page - 1) * SystemConstants.MAX_PAGE_SIZE;
         // 1.景点：name like → {id,name,image,score,avgPrice,destination}（首图取逗号首项，score 原值返回）
         List<Attraction> attractions = attractionMapper.selectList(
                 new LambdaQueryWrapper<Attraction>()
                         .like(Attraction::getName, keyword)
-                        .last("LIMIT " + SystemConstants.MAX_PAGE_SIZE));
+                        .last("LIMIT " + offset + "," + SystemConstants.MAX_PAGE_SIZE));
         List<Map<String, Object>> attractionItems = attractions.stream().map(a -> {
             Map<String, Object> item = new LinkedHashMap<>(6);
             item.put("id", a.getId());
@@ -226,6 +246,8 @@ public class SearchServiceImpl implements ISearchService {
             item.put("destination", a.getDestination());
             return item;
         }).collect(Collectors.toList());
+        // 【门票信息的实现】补充 hasTicket/avgPrice/hasSeckill（与 ES 路径行为一致）
+        attachTicketInfo(attractionItems);
 
         // 2.游记：title like → {id,title,image,userId,name}（首图 + 作者昵称）
         // 【笔记可见性的实现】搜索同样过滤他人隐藏笔记：仅公开笔记（visible=0）或本人自己的笔记，
@@ -240,7 +262,7 @@ public class SearchServiceImpl implements ISearchService {
                                 w.or().eq(TravelNote::getUserId, currentUserId);
                             }
                         })
-                        .last("LIMIT " + SystemConstants.MAX_PAGE_SIZE));
+                        .last("LIMIT " + offset + "," + SystemConstants.MAX_PAGE_SIZE));
         // 批量查作者昵称（按 userId 去重一次查齐，避免逐条查询 N+1）
         Map<Long, String> nickNameMap = queryNickNames(
                 notes.stream().map(TravelNote::getUserId).collect(Collectors.toList()));
@@ -258,7 +280,7 @@ public class SearchServiceImpl implements ISearchService {
         List<User> users = userMapper.selectList(
                 new LambdaQueryWrapper<User>()
                         .like(User::getNickName, keyword)
-                        .last("LIMIT " + SystemConstants.MAX_PAGE_SIZE));
+                        .last("LIMIT " + offset + "," + SystemConstants.MAX_PAGE_SIZE));
         List<UserDTO> userItems = users.stream()
                 .map(u -> BeanUtil.copyProperties(u, UserDTO.class))
                 .collect(Collectors.toList());
@@ -411,5 +433,49 @@ public class SearchServiceImpl implements ISearchService {
         }
         String[] parts = images.split(",");
         return parts.length > 0 ? parts[0] : null;
+    }
+
+    /**
+     * 【门票信息的实现】为搜索结果景点批量补充 hasTicket/avgPrice/hasSeckill
+     * <p>
+     * 实现细节（与 AttractionServiceImpl.attachListInfo 的门票部分同源）：
+     * - 修复：搜索链路原先未补门票信息，前端 `hasTicket && avgPrice > 0` 判定失败，
+     *   收费景点在搜索结果中误显示"免费"，与首页列表价格显示不一致。
+     * - avgPrice=该景点所有上架门票的最低 pay_value（分），一次 MIN(pay_value) GROUP BY + IN 取全量；
+     * - hasTicket=有上架门票；hasSeckill=有秒杀票（tb_seckill_ticket JOIN）。
+     * @param attractionItems 搜索结果景点 Map 列表（原地补充）
+     */
+    private void attachTicketInfo(List<Map<String, Object>> attractionItems) {
+        if (attractionItems == null || attractionItems.isEmpty()) {
+            return;
+        }
+        List<Long> ids = attractionItems.stream()
+                .map(m -> ((Number) m.get("id")).longValue())
+                .collect(Collectors.toList());
+        Map<Long, Long> ticketMinPrice = new HashMap<>(ids.size());
+        List<Map<String, Object>> ticketRows = ticketMapper.selectMaps(
+                new QueryWrapper<Ticket>()
+                        .select("attraction_id", "MIN(pay_value) AS minPrice")
+                        .in("attraction_id", ids)
+                        .groupBy("attraction_id"));
+        if (ticketRows != null) {
+            for (Map<String, Object> row : ticketRows) {
+                Object idObj = row.get("attraction_id");
+                if (idObj == null) {
+                    continue;
+                }
+                Object minPriceObj = row.get("minPrice");
+                ticketMinPrice.put(((Number) idObj).longValue(),
+                        minPriceObj == null ? 0L : ((Number) minPriceObj).longValue());
+            }
+        }
+        Set<Long> seckillIds = new HashSet<>(seckillTicketMapper.selectAttractionIdsWithSeckill(ids));
+        for (Map<String, Object> item : attractionItems) {
+            Long id = ((Number) item.get("id")).longValue();
+            boolean hasTicket = ticketMinPrice.containsKey(id);
+            item.put("hasTicket", hasTicket);
+            item.put("hasSeckill", seckillIds.contains(id));
+            item.put("avgPrice", hasTicket ? ticketMinPrice.get(id) : 0L);
+        }
     }
 }

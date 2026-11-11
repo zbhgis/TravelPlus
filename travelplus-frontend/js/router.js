@@ -1,7 +1,7 @@
 /**
  * 【路由的实现】hash 路由引擎——注册、匹配、渲染、tabbar 管理
  * 职责：管理 SPA 页面路由注册表、hashchange 监听、路由参数解析、tabbar 显隐与高亮
- * 依赖：无外部模块依赖（纯浏览器 API + 内部 routes 数组）
+ * 依赖：config.js (API_BASE)（纯浏览器 API + 内部 routes 数组）
  * 核心链路：
  *   register(pattern, handler) → 存入 routes[]
  *   hashchange → render(currentHash) → matchRoute → handler(app, params) → updateTabbar
@@ -11,6 +11,8 @@
  * - cleanup 机制：每次渲染前调用上一次 handler 返回的 cleanup 函数（清理定时器等）
  * - start：首次加载无 hash 时默认跳 #/home
  */
+import { API_BASE } from './config.js';
+
 const routes = [];
 let currentCleanup = null;
 
@@ -107,15 +109,20 @@ function updateTabbar(hash) {
   ];
 
   /** 【旅行功能的实现】hiddenPages 加 /trip 前缀——/trip/new、/trip/:id 等隐藏 tabbar，/travel 是 tab 页不隐藏 */
-  const hiddenPages = ['/login', '/register', '/attraction', '/note', '/notes', '/follow', '/user', '/support', '/privacy', '/favorites', '/chat', '/chats', '/trip', '/search', '/orders', '/order', '/wallet', '/points', '/balance', '/coupons'];
+  const hiddenPages = ['/login', '/register', '/attraction', '/note', '/notes', '/follow', '/user', '/support', '/privacy', '/favorites', '/chat', '/chats', '/trip', '/search', '/orders', '/order', '/wallet', '/points', '/balance', '/coupons', '/ai-chat'];
   const shouldHide = hiddenPages.some(p => pageName === p || pageName.startsWith(p + '/'));
-
+  /** 【手机端体验的实现】全屏页去除 #app 底部 tabbar 占位（app-container.no-tabbar）
+   * - tabbar 隐藏的页面（聊天/详情/登录等）→ #app 只保留底部安全区，不再留 56px 灰条
+   * - tab 页恢复常规占位；类挂在 #app 上由 CSS 统一控制
+   */
   if (shouldHide) {
     tabbar.style.display = 'none';
+    appContainer?.classList.add('no-tabbar');
     return;
   }
 
   tabbar.style.display = 'flex';
+  appContainer?.classList.remove('no-tabbar');
   tabbar.innerHTML = tabs.map(t => {
     // 消息 tab 高亮：匹配 /messages 精确路径或 /messages/:category 子路由
     let active = pageName === t.hash;
@@ -149,7 +156,7 @@ function updateTabbar(hash) {
 async function refreshBadge() {
   try {
     const token = localStorage.getItem('travelplus_token') || '';
-    const res = await fetch('http://localhost:8081/notify/unread-count', {
+    const res = await fetch(API_BASE + '/notify/unread-count', {
       headers: token ? { authorization: token } : {}
     });
     const body = await res.json();
@@ -211,10 +218,21 @@ function getIcon(name, active) {
  * - 实现：调用 matchRoute → 拒绝旧 cleanup（清理定时器等）→ handler(app, params) → 存新 cleanup
  * - 边界：无匹配路由显示 404 页面；handler 异常显示错误页面
  */
+/** 【手机端体验的实现】页面滚动位置记忆（会话级）
+ * - 离开页面时记录 scrollY；再次进入（返回）时恢复，未记录过（前进）则回顶
+ * - 模拟原生 App 的导航栈体验：列表 → 详情 → 返回，列表停在原处
+ */
+const scrollMemory = new Map();
+let lastRenderedHash = null;
+
 async function render(hash) {
   const app = document.getElementById('app');
   if (!app) return;
 
+  // 记录离开页的滚动位置（同 hash 重渲染不记录）
+  if (lastRenderedHash && lastRenderedHash !== hash) {
+    scrollMemory.set(lastRenderedHash, window.scrollY);
+  }
   if (currentCleanup) {
     try { currentCleanup(); } catch {}
     currentCleanup = null;
@@ -224,6 +242,7 @@ async function render(hash) {
   if (!match) {
     app.innerHTML = '<div class="empty-state"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><p>页面不存在</p></div>';
     updateTabbar(hash);
+    lastRenderedHash = hash;
     return;
   }
 
@@ -237,7 +256,12 @@ async function render(hash) {
     app.innerHTML = '<div class="empty-state"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><p>页面加载出错</p></div>';
   }
 
+  // 恢复/回顶：返回旧页面（hash 一致，含 query）恢复原滚动位置，前进新页面回顶
+  const saved = scrollMemory.get(hash);
+  window.scrollTo(0, saved != null ? saved : 0);
+
   updateTabbar(hash);
+  lastRenderedHash = hash;
 }
 
 /**
@@ -245,6 +269,10 @@ async function render(hash) {
  * - 边界：无 hash 或 hash='#' 时默认跳 #/home
  */
 export function start() {
+  /* 【手机端体验的实现】接管滚动恢复——禁用浏览器对 hash 导航的原生滚动恢复，统一由 scrollMemory 管理 */
+  if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
   window.addEventListener('hashchange', () => {
     render(getCurrentHash());
   });

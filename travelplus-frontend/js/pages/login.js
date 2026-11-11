@@ -128,8 +128,10 @@ export function renderLogin(container) {
     toast('登录成功');
     const redirect = getUrlParam('redirect');
     if (redirect) {
-      const r = decodeURIComponent(redirect);
-      window.location.hash = '#' + (r.startsWith('/') ? r : '/' + r);
+      // 【bug 修复】getUrlParam 内部 URLSearchParams.get 已自动解码一次
+      // （api.js 401 跳转时已 encodeURIComponent 编码），此处不再二次 decodeURIComponent，
+      // 避免路径含 % 时二次解码报 URIError 或产生错误字符
+      window.location.hash = '#' + (redirect.startsWith('/') ? redirect : '/' + redirect);
     } else {
       window.location.hash = '#/home';
     }

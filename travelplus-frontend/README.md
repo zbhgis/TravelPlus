@@ -48,13 +48,14 @@ export const IMG_BASE = API_BASE;                   // 图片资源基础路径
 | 发布/编辑游记 | `#/edit`（编辑 `#/edit?id=`） | 标题+正文+图片上传（最多9张），发布或编辑，删除 |
 | 关注动态 | `#/follow`（即 `#/home?tab=follow`） | 关注用户游记时间线 Feed |
 | 热门游记 | `#/notes`（即 `#/home?tab=notes`） | 双列瀑布流、无限滚动 |
-| 旅行地图 | `#/travel` | Leaflet 地图、附近景点定位 |
+| 旅行地图 | `#/travel` | 高德地图、卫星/标准图层切换、附近景点定位与路线规划 |
 | 新建旅行计划 | `#/trip/new` | 多日行程规划 |
 | 旅行计划详情 | `#/trip/:id` | 行程查看 |
 | 全局搜索 | `#/search` | ES 搜索（景点/游记/用户三类）、热门词、输入联想 |
 | 消息中心 | `#/messages` | 三分类通知（赞和收藏/新增关注/评论和@）+ 分类未读角标 |
 | 消息分类页 | `#/messages/likes`、`#/messages/follows`、`#/messages/comments` | 各分类通知列表 |
-| AI 客服 | `#/support` | DeepSeek 异步客服对话（轮询回复） |
+| AI 客服 | `#/support` | SSE 流式客服：意图路由、知识库、订单/积分工具、人工转接、👍/👎 反馈 |
+| 客服工作台 | `#/support-admin` | 管理员：工单列表、完整会话转录、接入/回复/结束、差评反馈、知识库重载 |
 | 私信会话列表 | `#/chats` | 微信式会话列表，左滑置顶/删除，未读红点 |
 | 私信聊天 | `#/chat/:peerId` | 一对一聊天，发送/未读红点 |
 | 我的主页 | `#/profile` | 签到、我的游记、获赞/关注/粉丝、钱包/订单/收藏/足迹/浏览记录入口 |
@@ -176,7 +177,23 @@ export const IMG_BASE = API_BASE;                   // 图片资源基础路径
 ### AI 客服
 | 前端动作 | 接口 | 方法 |
 |----------|------|------|
-| 发送消息（异步回复） | `/support/chat` | POST（需登录） |
+| 流式咨询（SSE） | `/support/chat/stream` | POST（需登录） |
+| 兼容的异步咨询 | `/support/chat` | POST（需登录） |
+| 会话状态 | `/support/status` | GET（需登录） |
+| 转人工 / 恢复 AI | `/support/handoff`、`/support/resume` | POST（需登录） |
+| 回复反馈 | `/support/feedback` | POST（需登录） |
+| 清空 Agent 记忆 | `/support/session` | DELETE（需登录） |
+
+### 客服工作台（管理员）
+| 前端动作 | 接口 | 方法 |
+|----------|------|------|
+| 管理员校验 | `/support/admin/me` | GET |
+| 工单列表 | `/support/admin/tickets?status=` | GET |
+| 工单会话转录 | `/support/admin/tickets/{id}/messages` | GET |
+| 接入 / 回复 / 结束 | `/support/admin/tickets/{id}/claim`、`/reply`、`/close` | POST |
+| 差评反馈 | `/support/admin/feedback?helpful=0` | GET |
+| 知识库统计 / 重载 | `/support/admin/kb`、`/support/admin/kb/reload` | GET / POST |
+| 客服指标 | `/support/admin/metrics` | GET |
 
 ### 旅行模块
 | 前端动作 | 接口 | 方法 |
@@ -206,3 +223,5 @@ export const IMG_BASE = API_BASE;                   // 图片资源基础路径
 2. **图片上传**：图片由后端项目内 uploads/imgs 目录提供，随项目迁移。
 3. **CORS**：已配置完成（`MvcConfig` `allowedOriginPatterns("*")`，允许 `authorization` 头），前端独立端口可正常跨域访问后端 8081，无需额外配置。
 4. **路由**：基于 hash 路由（`#/`），不支持 HTML5 History API，刷新页面会重新加载。
+5. **客服工作台权限**：默认仅 1 号用户可访问（后端 `travelplus.support.admin-user-ids` 白名单），生产环境应改为 RBAC 角色与细粒度授权。
+6. **SSE 反向代理**：客服对话走 `POST /support/chat/stream` 流式输出；若部署在 Nginx 等反向代理后，需对该路径关闭响应缓冲（`proxy_buffering off`），否则打字机效果会退化为整段返回。

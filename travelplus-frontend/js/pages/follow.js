@@ -24,6 +24,16 @@ import { get } from '../api.js';
 import { imgUrl, imgError, showLoading, showEmpty, loadMore, toast } from '../ui.js';
 import { isLoggedIn } from '../store.js';
 
+/**
+ * 【XSS 防护】HTML 转义——用户可控内容（游记标题、作者昵称）插入 innerHTML 前必须转义
+ * - 与 note-detail.js / chat.js 的 escapeHtml 实现一致
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 /* 全页渲染：page-header + 鉴权重定向 + 内容 */
 export async function renderFollow(container) {
   if (!isLoggedIn()) {
@@ -124,14 +134,14 @@ function renderFollowNoteCards(container, list) {
     html += `
       <div class="note-card" data-id="${note.id}" data-author-id="${note.userId || ''}">
         <div class="note-img">
-          <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+          <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
         </div>
         <div class="note-body">
-          <div class="note-title">${note.title}</div>
+          <div class="note-title">${escapeHtml(note.title || '')}</div>
           <div class="note-footer">
             <div class="note-author">
-              <img class="avatar-sm" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${note.name || '匿名'}"/>
-              <span>${note.name || '匿名'}</span>
+              <img class="avatar-sm" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${escapeHtml(note.name || '匿名')}"/>
+              <span>${escapeHtml(note.name || '匿名')}</span>
             </div>
             <div class="note-likes">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="${note.isLike ? '#f87171' : 'none'}" stroke="${note.isLike ? '#f87171' : '#999'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -201,14 +211,14 @@ function appendFollowNoteCards(container, list, sentinel) {
     el.dataset.authorId = note.userId || '';
     el.innerHTML = `
       <div class="note-img">
-        <img src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
+        <img loading="lazy" src="${imgUrl(img)}" alt="" onerror="imgError(event)"/>
       </div>
       <div class="note-body">
-        <div class="note-title">${note.title}</div>
+        <div class="note-title">${escapeHtml(note.title || '')}</div>
         <div class="note-footer">
           <div class="note-author">
-            <img class="avatar-sm" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${note.name || '匿名'}"/>
-            <span>${note.name || '匿名'}</span>
+            <img class="avatar-sm" src="${imgUrl(note.icon)}" alt="" onerror="imgError(event)" data-avatar-uid="${note.userId || ''}" data-avatar-icon="${imgUrl(note.icon)}" data-avatar-nick="${escapeHtml(note.name || '匿名')}"/>
+            <span>${escapeHtml(note.name || '匿名')}</span>
           </div>
           <div class="note-likes">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="${note.isLike ? '#f87171' : 'none'}" stroke="${note.isLike ? '#f87171' : '#999'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>

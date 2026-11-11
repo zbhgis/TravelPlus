@@ -526,7 +526,7 @@ CREATE TABLE IF NOT EXISTS `tb_chat_message` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `from_user_id` bigint unsigned NOT NULL COMMENT '发送者',
   `to_user_id` bigint unsigned NOT NULL COMMENT '接收者',
-  `content` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息内容',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息内容（客服 Agent 回复可能较长，使用 text）',
   `is_read` tinyint NOT NULL DEFAULT '0' COMMENT '0=未读 1=已读',
   `is_deleted_by_me` tinyint NOT NULL DEFAULT '0' COMMENT '接收方已删除(仅接收方视角隐藏 0=正常 1=已删)',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -538,7 +538,7 @@ CREATE TABLE IF NOT EXISTS `tb_chat_message` (
 -- ----------------------------
 -- Records of tb_chat_message
 -- ----------------------------
---  【私信功能的实现】用户私信消息表（from_user_id 发送者 / to_user_id 接收者 / content 内容(≤500) / is_read 已读标记(0未读 1已读)；
+--  【私信功能的实现】用户私信消息表（from_user_id 发送者 / to_user_id 接收者 / content 内容(text，客服 Agent 长回复可落库) / is_read 已读标记(0未读 1已读)；
 --  is_deleted_by_me 已删除(Deprecated，删除会话改走 tb_chat_hidden)；idx_from_to 支持"与对方"双向会话分页，
 --  idx_to_read 支持未读数统计与置读；运行时业务数据，种子不写入。
 -- 运行时业务数据，种子脚本不写入（延续既有约定）。
@@ -1422,5 +1422,51 @@ CREATE TABLE IF NOT EXISTS `tb_trip_day_item` (
 -- ----------------------------
 --  【旅行计划的实现】旅行计划景点安排表（day_id → tb_trip_day，attraction_id → tb_attraction，sort）；运行时业务数据，种子不写入。
 -- 运行时业务数据，种子脚本不写入（延续既有约定）。
+
+
+-- ----------------------------
+-- Table structure for tb_support_handoff
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `tb_support_handoff` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `user_id` bigint unsigned NOT NULL COMMENT '咨询用户id',
+  `reason` varchar(500) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '转人工原因',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '0=待接入 1=人工服务中 2=已结束',
+  `source` varchar(16) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'user' COMMENT '来源 user/agent',
+  `assignee_id` bigint unsigned DEFAULT NULL COMMENT '接入的人工客服id',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `claim_time` datetime DEFAULT NULL COMMENT '接入时间',
+  `close_time` datetime DEFAULT NULL COMMENT '结束时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_status` (`user_id`,`status`),
+  KEY `idx_status_create` (`status`,`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPACT COMMENT='客服人工转接工单表（企业级客服 Agent）';
+
+-- ----------------------------
+-- Records of tb_support_handoff
+-- ----------------------------
+--  【企业级客服Agent的实现】人工转接工单表（status 0待接入/1人工中/2已结束）；运行时业务数据，种子不写入。
+
+
+-- ----------------------------
+-- Table structure for tb_support_feedback
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `tb_support_feedback` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `user_id` bigint unsigned NOT NULL COMMENT '用户id',
+  `message_id` bigint unsigned DEFAULT NULL COMMENT '被评价的客服消息id',
+  `intent` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '当时意图',
+  `helpful` tinyint NOT NULL COMMENT '1=有帮助 0=没帮助',
+  `reason` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '点踩原因',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_message` (`user_id`,`message_id`),
+  KEY `idx_user_create` (`user_id`,`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=COMPACT COMMENT='客服回复反馈表（企业级客服 Agent）';
+
+-- ----------------------------
+-- Records of tb_support_feedback
+-- ----------------------------
+--  【企业级客服Agent的实现】客服回复点赞/点踩表（message_id → tb_chat_message.id）；运行时业务数据，种子不写入。
 
 
